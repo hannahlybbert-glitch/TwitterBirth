@@ -1,0 +1,32 @@
+* Steps: Get 2013_2017 appended to 2018 data. Get demographics attached to user data files. 
+* Output the user_info with demographics as a dta file. 
+
+* Issue is that we should get the unique IDs created for the 2018 data for consistency
+
+* Standardize files
+
+* Start with volume
+import delimited using "$raw/tweet_volume_by_user_2018.csv", stringcols(_all) varnames(1) clear
+rename tweet_count orig_qt_count
+
+tempfile vol_2018 
+sa `vol_2018'
+
+import delimited using "$raw/retweet_reply_volume_by_user_2018.csv", stringcols(_all) varnames(1) clear
+keep author_id date rt_reply_count
+
+merge 1:1 author_id date using `vol_2018'
+drop if _merge == 1
+drop _merge
+
+* create unique_id variable that matches the 2013_2017 data
+gen unique_id = author_id + "_" + date_birth
+order unique_id
+
+* this is an ID that will mimic the IDs created for the 2018 data. It is a combination of the author_id variable and the timestamp for the date of birth of the child. The timestamps are kind of long which make our code run slower. Once everything is all cleaned up, you could truncate the IDs if you want by removing the seconds, minutes, and hours from the timestamp.
+gen unique_id = author_id + "_" + date_birth
+
+// sa "$cleaned/tweet_volume_by_user_2018.dta", replace
+
+import delimited using "$raw/tweet_volume_by_user_2013_2017.csv", stringcols(_all) varnames(1) clear
+rename tweet_count orig_qt_count
