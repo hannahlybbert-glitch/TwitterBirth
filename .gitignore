@@ -1,0 +1,23 @@
+# Secret keys / credentials
+config/
+.env
+
+# Claude settings
+.claude/
+
+# Reddit subfolders to exclude
+Reddit/raw/
+Reddit/docs/
+Reddit/data/
+
+# Top-level folders to exclude
+docs/
+data/
+
+# Exclude .pkl files everywhere
+*.pkl
+
+# Python clutter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

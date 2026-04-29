@@ -1,0 +1,69 @@
+{\rtf1\ansi\deff0 {\fonttbl{\f0\fnil Garamond;}}
+{\info {\author .}{\company .}{\title .}}
+\deflang1033\plain\fs20
+{\footer\pard\qc\plain\f0\fs20\chpgn\par}
+{
+{\fs20\b\qc\line Followers Count }{\par}
+{\trowd\trgaph108\trleft-108
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx1650
+\fs20\pard\intbl\qr { }\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx2870
+\fs20\pard\intbl\qr {{ N}}\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx4090
+\fs20\pard\intbl\qr {{ Mean}}\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx5310
+\fs20\pard\intbl\qr {{ SD}}\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx6530
+\fs20\pard\intbl\qr {{ Min}}\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx7750
+\fs20\pard\intbl\qr {{ Max}}\cell
+\row}
+{\trowd\trgaph108\trleft-108
+\cellx1650
+\fs20\pard\intbl\ql {{ followers count}}\cell
+\cellx2870
+\qr {{7538}}\cell
+\cellx4090
+\qr {{7920.855}}\cell
+\cellx5310
+\qr {{130224.933}}\cell
+\cellx6530
+\qr {{0}}\cell
+\cellx7750
+\qr {{7779933}}\cell
+\row}
+
+
+{\fs20\b\qc\line Following Count }{\par}
+{\trowd\trgaph108\trleft-108
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx1650
+\fs20\pard\intbl\qr { }\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx2870
+\fs20\pard\intbl\qr {{ N}}\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx4090
+\fs20\pard\intbl\qr {{ Mean}}\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx5310
+\fs20\pard\intbl\qr {{ SD}}\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx6530
+\fs20\pard\intbl\qr {{ Min}}\cell
+\clbrdrt\brdrw10\brdrs \clbrdrb\brdrw25\brdrs  \cellx7750
+\fs20\pard\intbl\qr {{ Max}}\cell
+\row}
+{\trowd\trgaph108\trleft-108
+\cellx1650
+\fs20\pard\intbl\ql {{ following count}}\cell
+\cellx2870
+\qr {{7542}}\cell
+\cellx4090
+\qr {{929.963}}\cell
+\cellx5310
+\qr {{12826.167}}\cell
+\cellx6530
+\qr {{0}}\cell
+\cellx7750
+\qr {{1100973}}\cell
+\row}
+
+
+\writepositionforappend
+}}

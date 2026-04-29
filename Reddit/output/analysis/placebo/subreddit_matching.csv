@@ -1,0 +1,13 @@
+treatment_subreddit,n_treat_authors,pct_of_treat_sample,t_avg_log_posts,ctrl_avg_log_posts,abs_diff,closest_ctrl_subreddit,,
+BabyBumps,2723,43.2,0.01894,0.01862,0.00032,running,,0.00032
+pregnant,1130,17.93,0.00644,0.00127,0.00517,careerguidance,,0.00517
+beyondthebump,1018,16.15,0.01663,0.01739,0.00076,Baking,,0.00076
+daddit,505,8.01,0.0053,0.00127,0.00403,careerguidance,,0.00403
+NewParents,341,5.41,0,0,0,Adulting; GenZ; MiddleGenZ; Younger_GenZ; Older_Millennials; OlderGenZ; IVF; truechildfree; millenials,,0
+predaddit,229,3.63,0.00433,0.00127,0.00306,careerguidance,,0.00306
+Parenting,202,3.2,0.0037,0.00127,0.00242,careerguidance,,0.00243
+Mommit,108,1.71,0.00354,0.00127,0.00227,careerguidance,,0.00227
+BeyondTheBumpUK,18,0.29,0,0,0,Adulting; GenZ; MiddleGenZ; Younger_GenZ; Older_Millennials; OlderGenZ; IVF; truechildfree; millenials,,0
+homebirth,13,0.21,0.0106,0.01239,0.00178,GradSchool,,0.00179
+ScienceBasedParenting,11,0.17,0,0,0,Adulting; GenZ; MiddleGenZ; Younger_GenZ; Older_Millennials; OlderGenZ; IVF; truechildfree; millenials,,0
+UKParenting,5,0.08,0,0,0,Adulting; GenZ; MiddleGenZ; Younger_GenZ; Older_Millennials; OlderGenZ; IVF; truechildfree; millenials,,0

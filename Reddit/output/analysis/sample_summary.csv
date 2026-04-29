@@ -1,0 +1,10 @@
+Sample restriction,N authors,% of total
+All authors (births_and_posts_22k),6303,100.0
+≥12 months pre-birth (one_year_pre),4511,71.6
+≥18 months pre-birth (full_18_pre),3952,62.7
+Posted after birth (posted_after_birth),3349,53.1
+≥12 months pre AND posted after birth,2004,31.8
+≥18 months pre AND posted after birth,1619,25.7
+  └ female,1367,21.7
+  └ male,226,3.6
+  └ gender ambiguous,26,0.4
