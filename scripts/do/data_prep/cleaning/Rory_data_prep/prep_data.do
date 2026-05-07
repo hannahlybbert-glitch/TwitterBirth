@@ -172,19 +172,19 @@
 
 
 	* Save the cleaned file
-	sa "$cleaned/user_info_full_sample.dta", replace
-	
+	sa "$intermediate/user_info_full_sample.dta", replace
+
 * merge with updated gender variable (manually edited gender values)
-	use "$cleaned/user_info_full_sample.dta", clear
+	use "$intermediate/user_info_full_sample.dta", clear
 	
 	merge 1:1 unique_id using "$raw\user_info_genderx2check.dta", keepusing(female)
 
 	drop _merge
 	
-	save "$cleaned/user_info_full_sample.dta", replace
+	save "$intermediate/user_info_full_sample.dta", replace
 	
 ** OTHER CLEANING USER DATA
-	use "$cleaned/user_info_full_sample.dta", clear
+	use "$intermediate/user_info_full_sample.dta", clear
 	
 	* truncate the unique_ID to eliminate time stamp (h)
 	replace unique_id = regexs(1) if regexm(unique_id, "^(.*)T")
@@ -199,7 +199,7 @@
 	use "$cleaned/tweet_volume_by_user_2018.dta", clear
 	append using "$cleaned/tweet_volume_by_user_2013_2017.dta"
 	
-	sa "$cleaned/tweet_volume_by_user_full_sample.dta", replace
+	sa "$intermediate/tweet_volume_by_user_full_sample.dta", replace
 
 	
 *********************** SENTIMENT ANALYSIS ***********************
@@ -211,7 +211,7 @@ sort unique_id created_at
 drop if tweet_id == "No Data" // 5 observations had no data, drop.
 
 save "$raw/tweets_by_user_full_sample.dta", replace
-save "$cleaned/tweets_by_user_full_sample.dta", replace
+save "$intermediate/tweets_by_user_full_sample.dta", replace
 
 // convert back to .csv for Python sentiment analysis
 use "$raw/tweets_by_user_full_sample.dta", clear
@@ -258,7 +258,7 @@ drop if abs(days_from) > 7
 *** Feel free to delete at some point ***
 
 * Userful trick for turning timestamp into stata date
-use "$cleaned/tweet_volume_by_user_full_sample.dta", clear
+use "$intermediate/tweet_volume_by_user_full_sample.dta", clear
 
 * combines two commands: the inner command (substr) evaluates first. It takes a string and keeps characters i-j where you have substr(var,i,j). So in our case it's substr(date_birth,1,10) keeps first 10 characters of "date_birth", which is just the YYYY-MM-DD part of the timestamp
 * the outer command (date) converts YYYY-MM-DD formatted string into a stata date

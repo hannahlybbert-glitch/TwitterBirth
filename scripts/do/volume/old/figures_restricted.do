@@ -84,7 +84,7 @@ restore
 
 use "$final/tweet_volume_by_user_full_sample_CLEAN.dta", clear
 
-merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(female) //30 not matched, check out
+merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(female) //30 not matched, check out
 drop _merge
 
 ** Generate needed variables
@@ -167,7 +167,7 @@ restore
 ******* FULL SAMPLE (by RACE) *********
 use "$final/tweet_volume_by_user_full_sample_CLEAN.dta", clear
 
-merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(race) //30 not matched, check out
+merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(race) //30 not matched, check out
 drop _merge
 
 * Generate variables for figs (same as above)
@@ -311,7 +311,7 @@ restore
 
 *********************** T TEST *************************
 use "$final/tweet_volume_by_user_full_sample_CLEAN.dta", clear
-merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(female) //30 not matched, check out
+merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(female) //30 not matched, check out
 drop _merge
 ** Generate needed variables
 gen days_from_birth = date - date_birth

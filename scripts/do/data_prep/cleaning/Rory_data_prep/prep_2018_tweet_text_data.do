@@ -8,7 +8,7 @@
 
 	
 ************** MODIFYING 2018 user info dataset **************
-use "$cleaned/user_info_full_sample.dta", clear
+use "$intermediate/user_info_full_sample.dta", clear
 
 // Checking if the same account announces multiple births within the dataset time frame
 duplicates tag author_id, generate(dup_tag)  
@@ -64,7 +64,7 @@ export delimited using "$raw/tweets_by_user_2018_matching.csv", replace
 
 ************** PREVIOUS NOTES **********************
 
-// use "$cleaned/user_info_full_sample.dta", clear
+// use "$intermediate/user_info_full_sample.dta", clear
 //
 // // drop if the birth occurred more than 7 days before or after the birth announcement tweet
 // destring days_from, replace
@@ -73,7 +73,7 @@ export delimited using "$raw/tweets_by_user_2018_matching.csv", replace
 
 
 // ************** MODIFYING 2018 user info dataset **************
-// use "$cleaned/user_info_full_sample.dta", clear
+// use "$intermediate/user_info_full_sample.dta", clear
 //
 // // Checking if the same account announces multiple births within the dataset time frame
 // duplicates tag author_id, generate(dup_tag)  

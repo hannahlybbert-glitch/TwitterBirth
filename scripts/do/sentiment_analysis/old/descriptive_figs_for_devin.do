@@ -143,7 +143,7 @@ use "$cleaned/tweets_by_user_full_sample_CLEAN.dta", clear
 // 	gen week_from_birth = floor(days_from_birth / 7)
 // 	keep if abs(week_from_birth) <= 78
 
-// merge m:1 unique_id using "$cleaned/user_info_full_sample_CLEAN.dta", force keepusing(female)
+// merge m:1 unique_id using "$final/user_analysis_sample.dta", force keepusing(female)
 // drop if _merge == 2	
 // drop _merge
 ** Link info

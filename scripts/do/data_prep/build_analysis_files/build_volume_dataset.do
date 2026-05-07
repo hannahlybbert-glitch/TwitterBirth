@@ -12,7 +12,7 @@ summarize og_qt_sample_tweets, detail
 	
 	drop if og_qt_sample_tweets > `p95' & !missing(og_qt_sample_tweets)
 	distinct author_id
-save "$volume_analysis/ogqt_volume_analysis_sample.dta", replace
+save "$final/ogqt_volume_analysis_sample.dta", replace
 	
 	
 * ----- BUILD TOTAL TWEET / RETWEET REPLIES VOLUME DATASET ------ *
@@ -31,7 +31,7 @@ summarize total_sample_tweets, detail
 	distinct author_id
 	distinct author_id if !missing(rt_reply_count)
 
-save "$volume_analysis/tweet_volume_analysis_sample.dta", replace
+save "$final/tweet_volume_analysis_sample.dta", replace
 
 
 

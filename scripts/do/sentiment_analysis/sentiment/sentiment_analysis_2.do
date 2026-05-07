@@ -734,7 +734,7 @@ restore
 //
 // use "$cleaned/tweets_by_user_full_sample_CLEAN.dta", clear
 //
-// merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(date_birth user_created_at)
+// merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(date_birth user_created_at)
 // drop _merge
 //
 // 	** Generate needed variables

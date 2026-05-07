@@ -4,7 +4,7 @@
 
 ****************************************************
 ******* FULL SAMPLE *********
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 ** 1A. TOTAL TWEETS - 95% conf intvl (og+qt+rt+rply)
 preserve
@@ -69,7 +69,7 @@ restore
 
 **2. ORIGINAL & QUOTE TWEETS
 preserve
-use "$volume_analysis/ogqt_volume_analysis_sample.dta", clear
+use "$final/ogqt_volume_analysis_sample.dta", clear
 	collapse (mean) og_qt_month_tweets ///
 			 (sd)   sd_total = og_qt_month_tweets ///
 			 (count) n = og_qt_month_tweets, ///
@@ -99,7 +99,7 @@ restore
 
 ****************************************************
 ******* FULL SAMPLE (by GENDER) *********
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 **1. TOTAL TWEETS by GENDER (og+qt+rt+rply)
 preserve
@@ -165,7 +165,7 @@ restore
 
 **2. ORIGINAL & QUOTE TWEETS by GENDER (og+qt)
 preserve
-use "$volume_analysis/ogqt_volume_analysis_sample.dta", clear
+use "$final/ogqt_volume_analysis_sample.dta", clear
 collapse (mean) og_qt_month_tweets (sd) sd_tweets = og_qt_month_tweets (count) n = og_qt_month_tweets, ///
 	by(months_from_birth female) 
 	
@@ -401,7 +401,7 @@ restore
 // ******* FULL SAMPLE (by RACE) *********
 // use "$final/tweet_volume_analysis_sample.dta", clear
 //
-// merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(race) //30 not matched, check out
+// merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(race) //30 not matched, check out
 // drop _merge
 //
 // * Generate variables for figs (same as above)

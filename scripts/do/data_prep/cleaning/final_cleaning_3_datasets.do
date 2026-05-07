@@ -6,7 +6,7 @@
 ********************************************************
 ***************** USER INFO DATA *****************
 
-use "$cleaned/user_info_full_sample.dta", clear
+use "$intermediate/user_info_full_sample.dta", clear
 
 *** Variable types ***
 **Integers
@@ -89,6 +89,8 @@ gen days_from2 = date_birth_tweet - date_birth
 drop days_from
 rename days_from2 days_from
 
+** KEEP ONLY THE AUTHORS WE USE IN THE ANALYSIS SAMPLE 
+
 
 *** Label all variables ***
 label variable unique_id "Unique identifier for each author and birth"
@@ -140,7 +142,7 @@ save "$final/user_info_full_sample_CLEAN.dta", replace
 ********************************************************
 ***************** VOLUME DATA *****************
 
-use "$cleaned/tweet_volume_by_user_full_sample.dta", clear
+use "$intermediate/tweet_volume_by_user_full_sample.dta", clear
 
 ** Manual cleaning - 1 var with no orig_qt_count
 replace author_id = "312469045" if unique_id == "312469045_2017-09-20T21:33:40.000Z"
@@ -285,7 +287,7 @@ save "$final/tweet_volume_by_user_full_sample_CLEAN.dta", replace
 ********************************************************
 ***************** TWEET TEXT DATA *****************
 
-use "$cleaned/tweets_by_user_full_sample.dta", clear
+use "$intermediate/tweets_by_user_full_sample.dta", clear
 
 *** Variable types ***
 	* Integers

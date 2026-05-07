@@ -2,7 +2,7 @@
 
 use "$cleaned/tweets_by_user_full_sample_CLEAN.dta", clear
 
-merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(date_birth followers_count user_created_at) 
+merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(date_birth followers_count user_created_at) 
 drop _merge
 
 ** Generate needed variables
@@ -335,7 +335,7 @@ restore
 
 **************************** EXPERIMENTING ****************************
 use "$cleaned/tweets_by_user_full_sample_CLEAN.dta", clear
-merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(date_birth followers_count) 
+merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(date_birth followers_count) 
 drop _merge
 ** Generate needed variables
 gen days_from_birth = created_at - date_birth

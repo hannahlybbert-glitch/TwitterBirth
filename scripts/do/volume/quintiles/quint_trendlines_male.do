@@ -2,7 +2,7 @@
 // Created: 01/26/2026
 // Purpose: MALES --> Normalized Quintiles + trend lines
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 *------------------------------------------------------------------------------
 * ALL 5 QUINTILES MALES with SINGLE OVERALL trend line

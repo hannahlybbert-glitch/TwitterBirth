@@ -4,7 +4,7 @@
 ******* Followers_count *********
 use "$final/tweet_volume_by_user_full_sample_CLEAN.dta", clear
 
-merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(followers_count)
+merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(followers_count)
 drop _merge
 
 * Generate variables for figs (same as above)
@@ -171,7 +171,7 @@ restore
 
 ****************** T TESTS ******************
 use "$final/tweet_volume_by_user_full_sample_CLEAN.dta", clear
-merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(followers_count)
+merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(followers_count)
 drop _merge
 
 * Generate variables for figs (same as above)

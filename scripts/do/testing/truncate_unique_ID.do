@@ -1,6 +1,6 @@
 clear all
 
-use "D:\TwitterBirth\data\cleaned\user_info_full_sample.dta" 
+use "D:\TwitterBirth\data\cleaned\intermediate\user_info_full_sample.dta"
 
 replace unique_id = regexs(1) if regexm(unique_id, "^(.*)T")
 

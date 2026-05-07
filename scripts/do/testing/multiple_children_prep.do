@@ -1,4 +1,4 @@
-use "$cleaned/user_info_full_sample.dta", clear
+use "$intermediate/user_info_full_sample.dta", clear
 
 // check for duplicates
 duplicates tag author_id, generate(dup_tag)

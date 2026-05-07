@@ -2,7 +2,7 @@
 // Created: 01/26/2026
 // Purpose: Volume regression -18 to -9, 1-17
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 
 *--------------------------------------------------------------------------

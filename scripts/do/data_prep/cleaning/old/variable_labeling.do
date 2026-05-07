@@ -1,7 +1,7 @@
 ******************* Variable Labeling ********************
 
 ** #1 - User info (full sample)
-use "$cleaned/user_info_full_sample.dta", clear
+use "$intermediate/user_info_full_sample.dta", clear
 
 label variable unique_id "Unique identifier for each author and birth"
 label variable author_id "unique identifer for each Twitter user"
@@ -35,7 +35,7 @@ label variable end_date "Last day of data scraped from this account"
 label variable orig_qt_count "Total original + quote tweets (18mo pre/post birth)"
 label variable rt_reply_count "Total retweet + replies (18mo pre/post birth)"
 
-save "$cleaned/user_info_full_sample.dta", replace
+save "$intermediate/user_info_full_sample.dta", replace
 
 
 ** #1A - User info (first birth only)
@@ -77,7 +77,7 @@ save "$cleaned/user_info_first_child_NOTfull.dta", replace
 
 
 ** #2 Tweet Volume 
-use "$cleaned/tweet_volume_by_user_full_sample.dta", clear
+use "$intermediate/tweet_volume_by_user_full_sample.dta", clear
 
 label variable unique_id "Unique identifier for each author and birth"
 label variable author_id "Unique identifer for each Twitter user"
@@ -89,11 +89,11 @@ label variable date_birth "Child birth date"
 label variable begin_date "Date 18 months pre-birth"
 label variable end_date "Date 18 months post-birth"
 
-save "$cleaned/tweet_volume_by_user_full_sample.dta", replace
+save "$intermediate/tweet_volume_by_user_full_sample.dta", replace
 
 
 ** #3 Tweet Text
-use "$cleaned/tweets_by_user_full_sample.dta", clear
+use "$intermediate/tweets_by_user_full_sample.dta", clear
 
 label variable unique_id "Unique identifier for each Twitter user and their first birth"
 label variable author_id "unique identifer for each Twitter user"
@@ -109,5 +109,5 @@ label variable media_url "Link to picture on tweet (if applicable)"
 label variable tweet_type "Type of tweet (original vs quote)"
 label variable embedded_urls "Link to URL within the tweet (if applicable)"
 
-save "$cleaned/tweets_by_user_full_sample.dta", replace
+save "$intermediate/tweets_by_user_full_sample.dta", replace
 

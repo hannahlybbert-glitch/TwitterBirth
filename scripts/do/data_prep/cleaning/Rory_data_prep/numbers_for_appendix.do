@@ -2,7 +2,7 @@
 
 **# These need to be updated as of 10/24
 * User info
-	use "$cleaned/user_info_full_sample_CLEAN.dta", clear
+	use "$final/user_analysis_sample.dta", clear
 	count // 8,474
 	distinct unique_id author_id // 8,474 announcements from 8,440 accounts
 	distinct author_id if full_3years == 1 // 7,510 accounts active for full 3
@@ -136,14 +136,14 @@ tab birth,m
 
 
 ***************** Full Sample *****************
-use "$cleaned/tweet_volume_by_user_full_sample.dta", clear
-merge m:1 unique_id using "$cleaned/user_info_full_sample.dta", keepusing(days_from)
+use "$intermediate/tweet_volume_by_user_full_sample.dta", clear
+merge m:1 unique_id using "$intermediate/user_info_full_sample.dta", keepusing(days_from)
 destring days_from, replace
 unique unique_id if !missing(orig_qt_count) & abs(days_from) <= 7
 unique unique_id if !missing(rt_reply_count) & abs(days_from) <= 7
 
 
-use "$cleaned/user_info_full_sample.dta", clear
+use "$intermediate/user_info_full_sample.dta", clear
 destring days_from, replace
 unique unique_id if !missing(orig_qt_count) & abs(days_from) <= 7
 unique unique_id if !missing(rt_reply_count) & abs(days_from) <= 7

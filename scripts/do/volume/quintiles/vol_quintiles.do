@@ -2,7 +2,7 @@
 // Created: 01/26/2026
 // Purpose: Volume figs by quintile and gender
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 
 *--------------------------------------------------------------------------
@@ -60,7 +60,7 @@ graph export "$volume_figs/twt_behavior/quintiles/Q`q'.jpg", replace
 
 
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 *--------------------------------------------------------------------------
 * LOOP 2 SETUP: Calculate quintiles SEPARATELY by gender

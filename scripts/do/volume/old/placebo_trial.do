@@ -66,7 +66,7 @@ graph export "$figures/twt_behavior/placebo/all_placebo.jpg", replace
 
 use "$cleaned/tweet_volume_by_user_full_sample_CLEAN.dta", clear
 
-merge m:1 unique_id using "$final/user_info_full_sample_CLEAN.dta", keepusing(female) //30 not matched, check out
+merge m:1 unique_id using "$final/user_analysis_sample.dta", keepusing(female) //30 not matched, check out
 drop _merge
 
 * 1. Generate real birth timeline variables
@@ -245,7 +245,7 @@ twoway (line total_tweets week_from_birth, lwidth(medthick) lcolor(orange)) ///
 
 **************** EXPERIMENTING PLACEBO ******************
 
-use "$cleaned/user_info_full_sample_CLEAN.dta", clear
+use "$final/user_analysis_sample.dta", clear
 
 hist date_birth
 

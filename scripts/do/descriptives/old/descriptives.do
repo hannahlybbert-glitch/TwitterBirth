@@ -5,7 +5,7 @@
 * --------------------------------------------------------*
 * User info/demographics descriptives
 		* All will be done with the 7510 sample (must have full 3 years of data)
-use "$cleaned/user_info_full_sample_CLEAN.dta", clear
+use "$final/user_analysis_sample.dta", clear
 	keep if full_3years == 1
 	
 	

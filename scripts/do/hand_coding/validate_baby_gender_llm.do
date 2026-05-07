@@ -10,7 +10,7 @@ log using "$testing/llm_gender_validation_results.log", replace text
 *         (baby_gender_sample200.dta only has tweet_id, not unique_id)
 ********************************************************************************
 
-use "$cleaned/user_info_full_sample.dta", clear
+use "$intermediate/user_info_full_sample.dta", clear
 
 * Keep only what we need to bridge tweet_id -> unique_id
 keep tweet_id unique_id

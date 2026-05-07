@@ -14,7 +14,7 @@ di "$xlab_months"
 global ytitle_rt "Log Retweets and Replies"
 
 * Load data
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 gen lrt_rp_month_tweets = log(rt_rp_month_tweets + 1)
 di "$ylab"
 di "$xlab_months"

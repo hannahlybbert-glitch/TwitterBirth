@@ -10,7 +10,7 @@ do "$dofile/set_globals.do"
 global ytitle_orig "Log Original Tweets"
 
 * Load data
-use "$volume_analysis/ogqt_volume_analysis_sample.dta", clear
+use "$final/ogqt_volume_analysis_sample.dta", clear
 gen log_og_tweets = log(og_qt_month_tweets + 1)
 
 

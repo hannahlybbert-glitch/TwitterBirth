@@ -3,7 +3,7 @@
 // Purpose: FEMALES --> Normalized Q1 + trend line + regressions 
 
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 *------------------------------------------------------------------------------
 * Q1 FEMALES ONLY with trend lines

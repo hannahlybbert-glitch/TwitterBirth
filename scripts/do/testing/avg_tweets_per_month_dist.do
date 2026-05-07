@@ -6,13 +6,13 @@
 do "$dofile/set_globals.do"
 
 * Keep only authors in the og/qt volume analysis sample
-use "$volume_analysis/ogqt_volume_analysis_sample.dta", clear
+use "$final/ogqt_volume_analysis_sample.dta", clear
 keep author_id
 duplicates drop
 tempfile volume_authors
 save `volume_authors'
 
-use "$cleaned/user_info_full_sample_CLEAN.dta", clear
+use "$final/user_analysis_sample.dta", clear
 merge m:1 author_id using `volume_authors', keep(match) nogen
 
 * Reference date: April 2025

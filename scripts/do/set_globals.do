@@ -10,6 +10,7 @@ cd $dir
 * data
 global raw "$dir/data/raw"
 global cleaned "$dir/data/cleaned"
+global intermediate "$dir/data/cleaned/intermediate"
 global final "$dir/data/final"
 global volume_analysis "$dir/data/volume_analysis"
 global backup "$dir/data/backup_files"

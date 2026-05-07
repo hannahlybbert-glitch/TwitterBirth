@@ -5,7 +5,7 @@
 
 do "$dofile/set_globals.do"
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 preserve
 	* Step 1: One obs per (author × month × gender) — get their average monthly tweets

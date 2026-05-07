@@ -2,7 +2,7 @@
 // Created: 01/22/2026
 // Purpose: Volume fig using quintiles
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 
 
 *------------------------------------------------------------------------------

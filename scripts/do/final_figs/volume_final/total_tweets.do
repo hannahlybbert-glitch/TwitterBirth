@@ -10,7 +10,7 @@ do "$dofile/set_globals.do"
 global ytitle_total "Log Total Tweets"
 
 * Load data
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 gen ltotal_month_tweets = log(total_month_tweets + 1)
 
 

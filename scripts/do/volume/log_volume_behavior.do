@@ -4,7 +4,7 @@
 
 
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 // 	keep if full_3years ==1
 
 gen tmt_1 = total_month_tweets +1 
@@ -134,7 +134,7 @@ restore
 
 
 
-use "$volume_analysis/ogqt_volume_analysis_sample.dta", clear
+use "$final/ogqt_volume_analysis_sample.dta", clear
 * ORIGINAL & QUOTE TWEETS
 
 gen oqtmt_1 = og_qt_month_tweets +1

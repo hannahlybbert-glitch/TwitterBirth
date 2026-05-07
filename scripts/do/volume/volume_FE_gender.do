@@ -2,7 +2,7 @@
 * Created: 11/25/2025
 * Purpose: Individual Fixed effects on Volume Behavior by GENDER
 
-use "$volume_analysis/tweet_volume_analysis_sample.dta", clear
+use "$final/tweet_volume_analysis_sample.dta", clear
 // 	keep if full_3years==1 & acct_tweeted_postBA ==1
 
 ** by Month
@@ -171,7 +171,7 @@ restore
 
 
 *----- ORIGINAL + QUOTE TWEETS BY GENDER -----*
-use "$volume_analysis/ogqt_volume_analysis_sample.dta", clear
+use "$final/ogqt_volume_analysis_sample.dta", clear
 
 ** by Month
 	* Pre: 18 → 0

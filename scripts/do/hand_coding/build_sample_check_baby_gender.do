@@ -3,7 +3,7 @@
 * Purpose: Create a sample of 200 birth announcements to hand identify gender of baby
 
 
-use "$cleaned/user_info_full_sample_CLEAN.dta", clear
+use "$final/user_analysis_sample.dta", clear
 
 	keep if full_3years == 1
 
@@ -35,7 +35,7 @@ use "$testing/baby_gender_sample200.dta", clear
 // Note the output from this file should be the input file but with two additional columns 'baby_girl' (gender of baby, 1 if female, 0 if male, -99 if missing or unsure), and confidence score.
 //
 
-use "$cleaned/user_info_full_sample.dta", clear
+use "$intermediate/user_info_full_sample.dta", clear
 
 set seed 12345
 sample 50, count
@@ -46,4 +46,4 @@ merge 1:1 unique_id using "$testing/baby_gender_minisample.dta"
 
 
 use "$raw/child_gender_prediction.dta", clear
-merge 1:1 unique_id using "$cleaned/user_info_full_sample.dta"
+merge 1:1 unique_id using "$intermediate/user_info_full_sample.dta"

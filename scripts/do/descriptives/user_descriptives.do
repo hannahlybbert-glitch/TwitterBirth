@@ -11,7 +11,7 @@ capture mkdir "$desc_out"
 * ----------------------------------------------------------------
 * LOAD & FILTER
 * ----------------------------------------------------------------
-use "$final/user_info_full_sample_CLEAN.dta", clear
+use "$final/user_analysis_sample.dta", clear
 keep if full_3years == 1
 
 * ----------------------------------------------------------------
