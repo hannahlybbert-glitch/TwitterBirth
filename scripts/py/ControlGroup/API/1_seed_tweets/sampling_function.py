@@ -33,11 +33,11 @@ def draw_sample(week_start, target_n, hour_weights, bearer_token):
     end_time   = start_time + timedelta(hours=1)
 
     params = {
-        "query":       "-is:retweet -is:reply lang:en",
+        "query":       "(the OR a OR is OR i OR to) -is:retweet -is:reply lang:en",
         "start_time":  start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "end_time":    end_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "max_results": min(target_n, MAX_RESULTS_CAP),
-        "tweet.fields": "author_id,created_at",
+        "tweet.fields": "author_id,created_at,text,public_metrics",
         "sort_order":  "recency",
     }
     headers = {"Authorization": f"Bearer {bearer_token}"}
@@ -47,9 +47,11 @@ def draw_sample(week_start, target_n, hour_weights, bearer_token):
 
     return [
         {
-            "tweet_id":   t["id"],
-            "author_id":  t["author_id"],
-            "created_at": t["created_at"],
+            "tweet_id":      t["id"],
+            "author_id":     t["author_id"],
+            "created_at":    t["created_at"],
+            "text":          t["text"],
+            "public_metrics": t.get("public_metrics", {}),
         }
         for t in tweets
     ]

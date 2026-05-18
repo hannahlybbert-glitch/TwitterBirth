@@ -9,7 +9,7 @@ import os
 # Add script directory to path so sampling_function can be imported after os.chdir
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-os.chdir("D:/TwitterBirth")
+os.chdir(r"C:\Users\hlybbert\OneDrive - The University of Chicago\Documents\TwitterBirth")
 
 import json
 import time
@@ -19,7 +19,7 @@ from sampling_function import draw_sample
 
 # --- Config ---
 load_dotenv(dotenv_path="config/.env")
-BEARER_TOKEN = os.getenv("X_BEARER_TOKEN")
+BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN")
 
 HOUR_WEIGHTS_CSV = "data/ControlGroup/treatment_distributions/hour_weights.csv"
 WEEK_LIST_CSV    = "data/ControlGroup/treatment_distributions/week_list.csv"
@@ -33,6 +33,11 @@ SLEEP_BETWEEN    = 1.0    # seconds between API calls
 
 TEST_MODE        = True   # set False for full run
 
+if TEST_MODE:
+    OUTPUT_DIR      = "data/ControlGroup/seed_tweets/test"
+    CHECKPOINT_CSV  = f"{OUTPUT_DIR}/candidate_pool.csv"
+    PROGRESS_FILE   = f"{OUTPUT_DIR}/progress.json"
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --- Load inputs ---
@@ -41,17 +46,21 @@ week_list    = pd.read_csv(WEEK_LIST_CSV).reset_index(drop=True)
 
 if TEST_MODE:
     week_list    = week_list[week_list["week_start"].str.startswith("2013-01")].reset_index(drop=True)
-    TOTAL_TARGET = 50
+    TOTAL_TARGET = 110
 
-# --- Resume from checkpoint if exists ---
-if os.path.exists(CHECKPOINT_CSV) and os.path.exists(PROGRESS_FILE):
-    print("Checkpoint found — resuming from last save...")
-    pool_df        = pd.read_csv(CHECKPOINT_CSV, dtype=str)
-    candidate_pool = pool_df.set_index("author_id").to_dict("index")
-    with open(PROGRESS_FILE) as f:
-        progress = json.load(f)
-    start_idx = progress["last_completed_week_idx"] + 1
-    print(f"  Loaded {len(candidate_pool):,} users — resuming at week index {start_idx}")
+# --- Resume from checkpoint if exists (skipped in test mode) ---
+if not TEST_MODE and os.path.exists(CHECKPOINT_CSV) and os.path.exists(PROGRESS_FILE):
+    try:
+        pool_df        = pd.read_csv(CHECKPOINT_CSV, dtype=str)
+        candidate_pool = pool_df.set_index("author_id").to_dict("index")
+        with open(PROGRESS_FILE) as f:
+            progress = json.load(f)
+        start_idx = progress["last_completed_week_idx"] + 1
+        print(f"Checkpoint found — resuming with {len(candidate_pool):,} users at week index {start_idx}")
+    except (pd.errors.EmptyDataError, KeyError, ValueError):
+        print("Checkpoint files found but empty or invalid — starting fresh.")
+        candidate_pool = {}
+        start_idx      = 0
 else:
     candidate_pool = {}
     start_idx      = 0
@@ -91,6 +100,8 @@ for idx, row in week_list.iloc[start_idx:].iterrows():
                 "tweet_id":   tweet["tweet_id"],
                 "created_at": tweet["created_at"],
                 "week_start": week_start,
+                "text":       tweet["text"],
+                "like_count": tweet.get("public_metrics", {}).get("like_count"),
             }
             new_users += 1
 
