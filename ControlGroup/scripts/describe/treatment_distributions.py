@@ -6,11 +6,11 @@
 import os
 import pandas as pd
 
-os.chdir("D:/TwitterBirth")
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 # --- File paths ---
 INPUT_DTA    = "data/final/user_analysis_sample.dta"
-OUTPUT_DIR   = "data/ControlGroup/treatment_distributions"
+OUTPUT_DIR   = "ControlGroup/data/treatment_distributions"
 YEAR_CSV      = f"{OUTPUT_DIR}/yearly_targets.csv"
 DOW_HOD_CSV   = f"{OUTPUT_DIR}/hour_weights.csv"
 

@@ -9,7 +9,7 @@ import os
 # Add script directory to path so sampling_function can be imported after os.chdir
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-os.chdir(r"C:\Users\hlybbert\OneDrive - The University of Chicago\Documents\TwitterBirth")
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
 import json
 import time
@@ -21,9 +21,9 @@ from sampling_function import draw_sample
 load_dotenv(dotenv_path="config/.env")
 BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN")
 
-HOUR_WEIGHTS_CSV = "data/ControlGroup/treatment_distributions/hour_weights.csv"
-WEEK_LIST_CSV    = "data/ControlGroup/treatment_distributions/week_list.csv"
-OUTPUT_DIR       = "data/ControlGroup/seed_tweets"
+HOUR_WEIGHTS_CSV = "ControlGroup/data/treatment_distributions/hour_weights.csv"
+WEEK_LIST_CSV    = "ControlGroup/data/treatment_distributions/week_list.csv"
+OUTPUT_DIR       = "ControlGroup/data/seed_tweets"
 CHECKPOINT_CSV   = f"{OUTPUT_DIR}/candidate_pool.csv"
 PROGRESS_FILE    = f"{OUTPUT_DIR}/progress.json"
 
@@ -34,7 +34,7 @@ SLEEP_BETWEEN    = 1.0    # seconds between API calls
 TEST_MODE        = True   # set False for full run
 
 if TEST_MODE:
-    OUTPUT_DIR      = "data/ControlGroup/seed_tweets/test"
+    OUTPUT_DIR      = "ControlGroup/data/seed_tweets/test"
     CHECKPOINT_CSV  = f"{OUTPUT_DIR}/candidate_pool.csv"
     PROGRESS_FILE   = f"{OUTPUT_DIR}/progress.json"
 
