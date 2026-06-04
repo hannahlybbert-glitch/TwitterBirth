@@ -28,6 +28,7 @@ CHECKPOINT_CSV   = f"{OUTPUT_DIR}/candidate_pool.csv"
 PROGRESS_FILE    = f"{OUTPUT_DIR}/progress.json"
 
 TOTAL_TARGET     = 40_000
+TEST_TARGET      = 10    # used only in test mode
 CHECKPOINT_EVERY = 10     # save progress every N weeks
 SLEEP_BETWEEN    = 1.0    # seconds between API calls
 
@@ -45,8 +46,9 @@ hour_weights = pd.read_csv(HOUR_WEIGHTS_CSV)
 week_list    = pd.read_csv(WEEK_LIST_CSV).reset_index(drop=True)
 
 if TEST_MODE:
-    week_list    = week_list[week_list["week_start"].str.startswith("2013-01")].reset_index(drop=True)
-    TOTAL_TARGET = 110
+    TOTAL_TARGET = TEST_TARGET
+    n_test_weeks = max(10, TOTAL_TARGET // 40)
+    week_list    = week_list.head(n_test_weeks).reset_index(drop=True)
 
 # --- Resume from checkpoint if exists (skipped in test mode) ---
 if not TEST_MODE and os.path.exists(CHECKPOINT_CSV) and os.path.exists(PROGRESS_FILE):
