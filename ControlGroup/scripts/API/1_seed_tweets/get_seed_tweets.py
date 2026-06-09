@@ -27,7 +27,7 @@ WEEK_LIST_CSV    = "ControlGroup/data/treatment_distributions/week_list.csv"
 # FILTER_NAME      = "animal"   # set "" for the default (no-filter) pull
 # QUERY            = "cat OR kitten OR dog OR puppy OR hamster OR rabbit  -is:retweet -is:reply lang:en"
 
-# FILTER_NAME      = "personal"   # set "" for the default (no-filter) pull
+# FILTER_NAME      = "relationships"   # set "" for the default (no-filter) pull
 # QUERY            = "my mom OR my dad OR my sister OR my brother OR my boyfriend OR my girlfriend OR friend -is:retweet -is:reply lang:en"
 
 FILTER_NAME      = "events"   # set "" for the default (no-filter) pull
