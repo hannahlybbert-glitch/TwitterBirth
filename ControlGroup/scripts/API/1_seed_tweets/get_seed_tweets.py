@@ -23,9 +23,15 @@ BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN")
 
 HOUR_WEIGHTS_CSV = "ControlGroup/data/treatment_distributions/hour_weights.csv"
 WEEK_LIST_CSV    = "ControlGroup/data/treatment_distributions/week_list.csv"
-OUTPUT_DIR       = "ControlGroup/data/seed_tweets"
-CHECKPOINT_CSV   = f"{OUTPUT_DIR}/candidate_pool.csv"
-PROGRESS_FILE    = f"{OUTPUT_DIR}/progress.json"
+
+# FILTER_NAME      = "animal"   # set "" for the default (no-filter) pull
+# QUERY            = "cat OR kitten OR dog OR puppy OR hamster OR rabbit  -is:retweet -is:reply lang:en"
+
+# FILTER_NAME      = "personal"   # set "" for the default (no-filter) pull
+# QUERY            = "my mom OR my dad OR my sister OR my brother OR my boyfriend OR my girlfriend OR friend -is:retweet -is:reply lang:en"
+
+FILTER_NAME      = "events"   # set "" for the default (no-filter) pull
+QUERY            = "breakfast OR brunch OR dinner OR concert OR party OR vacation OR conference OR meeting -is:retweet -is:reply lang:en"
 
 TOTAL_TARGET     = 40_000
 TEST_TARGET      = 10    # used only in test mode
@@ -34,10 +40,12 @@ SLEEP_BETWEEN    = 1.0    # seconds between API calls
 
 TEST_MODE        = True   # set False for full run
 
-if TEST_MODE:
-    OUTPUT_DIR      = "ControlGroup/data/seed_tweets/test"
-    CHECKPOINT_CSV  = f"{OUTPUT_DIR}/candidate_pool.csv"
-    PROGRESS_FILE   = f"{OUTPUT_DIR}/progress.json"
+_base_dir  = "ControlGroup/data/seed_tweets"
+if FILTER_NAME:
+    _base_dir = f"{_base_dir}/{FILTER_NAME}"
+OUTPUT_DIR     = f"{_base_dir}/test" if TEST_MODE else _base_dir
+CHECKPOINT_CSV = f"{OUTPUT_DIR}/candidate_pool.csv"
+PROGRESS_FILE  = f"{OUTPUT_DIR}/progress.json"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -88,7 +96,7 @@ for idx, row in week_list.iloc[start_idx:].iterrows():
     print(f"[Week {idx + 1}/{len(week_list)}]  {week_start}  target_n={target_n}  pool={len(candidate_pool):,}")
 
     try:
-        tweets = draw_sample(week_start, target_n, hour_weights, BEARER_TOKEN)
+        tweets = draw_sample(week_start, target_n, hour_weights, BEARER_TOKEN, query=QUERY)
     except Exception as e:
         print(f"  ERROR: {e} — skipping week {week_start}")
         last_idx = idx

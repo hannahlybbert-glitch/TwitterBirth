@@ -11,7 +11,10 @@ SEARCH_URL    = "https://api.twitter.com/2/tweets/search/all"
 MAX_RESULTS_CAP = 500
 
 
-def draw_sample(week_start, target_n, hour_weights, bearer_token):
+DEFAULT_QUERY = "(the OR a OR is OR i OR to) -is:retweet -is:reply lang:en"
+
+
+def draw_sample(week_start, target_n, hour_weights, bearer_token, query=None):
     """
     Draw up to target_n tweets from a weighted random 1-hour window within the given week.
 
@@ -20,10 +23,14 @@ def draw_sample(week_start, target_n, hour_weights, bearer_token):
         target_n     : int — how many tweets to request (capped at MAX_RESULTS_CAP)
         hour_weights : DataFrame with columns [dow, hod, share]  (dow: 0=Mon … 6=Sun)
         bearer_token : str
+        query        : str — full X API query string; defaults to DEFAULT_QUERY if not provided
 
     Returns:
         list of dicts {tweet_id, author_id, created_at}
     """
+    if query is None:
+        query = DEFAULT_QUERY
+
     bucket     = hour_weights.sample(n=1, weights="share").iloc[0]
     dow        = int(bucket["dow"])
     hod        = int(bucket["hod"])
@@ -33,7 +40,7 @@ def draw_sample(week_start, target_n, hour_weights, bearer_token):
     end_time   = start_time + timedelta(hours=1)
 
     params = {
-        "query":       "(the OR a OR is OR i OR to) -is:retweet -is:reply lang:en",
+        "query":       query,
         "start_time":  start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "end_time":    end_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "max_results": min(target_n, MAX_RESULTS_CAP),

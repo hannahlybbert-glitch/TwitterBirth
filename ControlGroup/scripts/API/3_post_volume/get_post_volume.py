@@ -23,14 +23,22 @@ BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN")
 SLEEP_BETWEEN    = 0.5   # seconds between each API call
 CHECKPOINT_EVERY = 10    # users between progress saves
 
+FILTER_NAME = "animal"   # must match the value used in get_seed_tweets.py; set "" for default pull
+
 TEST_MODE = True   # set False for full run
 
+_base_profiles = "ControlGroup/data/user_profiles"
+_base_volume   = "ControlGroup/data/post_volume"
+if FILTER_NAME:
+    _base_profiles = f"{_base_profiles}/{FILTER_NAME}"
+    _base_volume   = f"{_base_volume}/{FILTER_NAME}"
+
 if TEST_MODE:
-    INPUT_CSV  = "ControlGroup/data/user_profiles/test/profiles_filtered.csv"
-    OUTPUT_DIR = "ControlGroup/data/post_volume/test"
+    INPUT_CSV  = f"{_base_profiles}/test/profiles_filtered.csv"
+    OUTPUT_DIR = f"{_base_volume}/test"
 else:
-    INPUT_CSV  = "ControlGroup/data/user_profiles/profiles_filtered.csv"
-    OUTPUT_DIR = "ControlGroup/data/post_volume"
+    INPUT_CSV  = f"{_base_profiles}/profiles_filtered.csv"
+    OUTPUT_DIR = _base_volume
 
 TEMP_CSV      = f"{OUTPUT_DIR}/post_volume_temp.csv"
 OUTPUT_CSV    = f"{OUTPUT_DIR}/post_volume.csv"       # test mode final output

@@ -26,14 +26,22 @@ SLEEP_BETWEEN     = 1.0          # seconds between API calls
 FILTER_B_REF_DATE = date(2025, 4, 1)   # reference date for account age (matches treatment sample)
 FILTER_B_CUTOFF   = 403                 # max avg weekly tweets
 
+FILTER_NAME = "events"   # must match the value used in get_seed_tweets.py; set "" for default pull
+
 TEST_MODE = True   # set False for full run
 
+_base_seed     = "ControlGroup/data/seed_tweets"
+_base_profiles = "ControlGroup/data/user_profiles"
+if FILTER_NAME:
+    _base_seed     = f"{_base_seed}/{FILTER_NAME}"
+    _base_profiles = f"{_base_profiles}/{FILTER_NAME}"
+
 if TEST_MODE:
-    INPUT_CSV  = "ControlGroup/data/seed_tweets/test/candidate_pool.csv"
-    OUTPUT_DIR = "ControlGroup/data/user_profiles/test"
+    INPUT_CSV  = f"{_base_seed}/test/candidate_pool.csv"
+    OUTPUT_DIR = f"{_base_profiles}/test"
 else:
-    INPUT_CSV  = "ControlGroup/data/seed_tweets/candidate_pool.csv"
-    OUTPUT_DIR = "ControlGroup/data/user_profiles"
+    INPUT_CSV  = f"{_base_seed}/candidate_pool.csv"
+    OUTPUT_DIR = _base_profiles
 
 RAW_CSV       = f"{OUTPUT_DIR}/profiles_raw.csv"
 FILTERED_CSV  = f"{OUTPUT_DIR}/profiles_filtered.csv"
