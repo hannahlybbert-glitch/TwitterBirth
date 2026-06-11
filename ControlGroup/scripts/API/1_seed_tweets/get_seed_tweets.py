@@ -33,6 +33,10 @@ WEEK_LIST_CSV    = "ControlGroup/data/treatment_distributions/week_list.csv"
 FILTER_NAME      = "events"   # set "" for the default (no-filter) pull
 QUERY            = "breakfast OR brunch OR dinner OR concert OR party OR vacation OR conference OR meeting -is:retweet -is:reply lang:en"
 
+FILTER_NAME      = "celebrations"   # set "" for the default (no-filter) pull
+QUERY            = '"happy birthday" OR "happy anniversary" OR birthday OR anniversary OR congratulations OR graduation OR graduated OR retirement OR wedding OR married -is:retweet -is:reply lang:en'
+
+
 TOTAL_TARGET     = 40_000
 TEST_TARGET      = 10    # used only in test mode
 CHECKPOINT_EVERY = 10     # save progress every N weeks
