@@ -23,10 +23,10 @@ BATCH_SIZE        = 100
 CHECKPOINT_EVERY  = 10           # batches between saves
 SLEEP_BETWEEN     = 1.0          # seconds between API calls
 
-FILTER_B_REF_DATE = date(2025, 4, 1)   # reference date for account age (matches treatment sample)
-FILTER_B_CUTOFF   = 403                 # max avg weekly tweets
+FILTER_B_REF_DATE = date.today()   # reference date for account age (date script is run)
+FILTER_B_CUTOFF   = 403            # max avg weekly tweets
 
-FILTER_NAME = "events"   # must match the value used in get_seed_tweets.py; set "" for default pull
+FILTER_NAME = "celebrations"   # must match the value used in get_seed_tweets.py; set "" for default pull
 
 TEST_MODE = True   # set False for full run
 
