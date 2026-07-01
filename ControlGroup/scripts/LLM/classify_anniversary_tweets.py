@@ -27,8 +27,8 @@ FILTER_NAME = "anniversary"
 _base_seed  = f"ControlGroup/data/seed_tweets/{FILTER_NAME}"
 INPUT_PATH  = f"{_base_seed}/test/candidate_pool.csv" if TEST_MODE else f"{_base_seed}/candidate_pool.csv"
 
-_base_out   = "ControlGroup/data/LLM"
-OUTPUT_PATH = f"{_base_out}/anniversary_classification_test.csv" if TEST_MODE else f"{_base_out}/anniversary_classification.csv"
+_base_out   = "ControlGroup/data/LLM/seed_tweets"
+OUTPUT_PATH = f"{_base_out}/anniversary_tweets_classified_test.csv" if TEST_MODE else f"{_base_out}/anniversary_tweets_classified.csv"
 
 _json_dir   = "ControlGroup/data/LLM/json"
 
@@ -108,8 +108,21 @@ def get_anniversary_prompt(tweet_id, text):
                 {
                     "role": "system",
                     "content": (
-                        # TODO: fill in classification prompt
-                        "PLACEHOLDER — insert anniversary classification prompt here."
+                        "Classify this tweet: is the author marking their own romantic (wedding or dating) anniversary?\n\n"
+
+                        "Flag 1 if:\n"
+                        "- Author celebrates their own anniversary with their partner\n"
+                        "  (\"happy anniversary [partner]\", \"our anniversary\", \"X years married/together\")\n\n"
+
+                        "Flag 0 if:\n"
+                        "- Subject is a third party (friend, family, business, event, show, etc.)\n"
+                        "- Non-romantic anniversary (job, business, show, etc.)\n"
+                        "- Manual quoted-retweet pattern (\"@user: ...\")\n"
+                        "- More than ~1 month from the anniversary date\n\n"
+
+                        "Respond on exactly two lines:\n"
+                        "1: anniversary_flag (1 or 0)\n"
+                        "2: confidence (0–100)"
                     )
                 },
                 {
