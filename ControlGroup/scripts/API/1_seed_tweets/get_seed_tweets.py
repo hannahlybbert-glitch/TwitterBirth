@@ -44,7 +44,7 @@ QUERY = (
     '-"shop" -"buy" -"order" -"discount" -"sale" -"gift idea"'
     '-"I liked a @YouTube video" '
 
-    '-is:retweet -is:reply lang:en'
+    '-is:retweet -is:reply -is:quote lang:en'
 )
 
 START_DATE      = datetime(2013, 1, 1, tzinfo=timezone.utc)
