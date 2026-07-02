@@ -103,7 +103,7 @@ def get_anniversary_prompt(tweet_id, text):
         "method": "POST",
         "url": "/v1/chat/completions",
         "body": {
-            "model": "gpt-4o-mini",
+            "model": "gpt-4o",
             "messages": [
                 {
                     "role": "system",
@@ -112,7 +112,7 @@ def get_anniversary_prompt(tweet_id, text):
 
                         "Flag 1 if:\n"
                         "- Author celebrates their own anniversary with their partner\n"
-                        "  (\"happy anniversary [partner]\", \"our anniversary\", \"X years married/together\")\n\n"
+                        "  Examples: (\"happy anniversary [partner]\", \"our anniversary\", \"X years married/together\")\n\n"
 
                         "Flag 0 if:\n"
                         "- Subject is a third party (friend, family, business, event, show, etc.)\n"
