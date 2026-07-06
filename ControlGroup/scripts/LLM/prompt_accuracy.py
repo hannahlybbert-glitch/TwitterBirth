@@ -1,8 +1,8 @@
 """
 Compute accuracy of each LLM prompt variant against the handcoded truth column.
 
-Reads ControlGroup/data/LLM/seed_tweets/handcoded.csv, which contains one row
-per handcoded tweet plus a trailing totals row (blank tweet_id) that is
+Reads ControlGroup/data/LLM/seed_tweets/test/handcoded.csv, which contains one
+row per handcoded tweet plus a trailing totals row (blank tweet_id) that is
 dropped before scoring. A prediction of -99 means the prompt did not produce
 a usable label for that tweet, and is treated as a negative (0) prediction.
 """
@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pandas as pd
 
-DATA_PATH = Path(__file__).resolve().parents[2] / "data" / "LLM" / "seed_tweets" / "handcoded.csv"
+DATA_PATH = Path(__file__).resolve().parents[2] / "data" / "LLM" / "seed_tweets" / "test" / "handcoded.csv"
 TRUTH_COL = "handcode"
-PRED_COLS = ["full", "mini", "mini_week", "mini_no_week_SO"]
+PRED_COLS = ["full", "mini", "mini_week", "mini_no_week_SO", "mini2"]
 MISSING_VALUE = -99
 
 

@@ -27,7 +27,7 @@ FILTER_NAME = "anniversary"
 _base_seed  = f"ControlGroup/data/seed_tweets/{FILTER_NAME}"
 INPUT_PATH  = f"{_base_seed}/test/candidate_pool.csv" if TEST_MODE else f"{_base_seed}/candidate_pool.csv"
 
-_base_out   = "ControlGroup/data/LLM/seed_tweets"
+_base_out   = "ControlGroup/data/LLM/seed_tweets/test" if TEST_MODE else "ControlGroup/data/LLM/seed_tweets"
 OUTPUT_PATH = f"{_base_out}/anniversary_tweets_classified_test.csv" if TEST_MODE else f"{_base_out}/anniversary_tweets_classified.csv"
 
 _json_dir   = "ControlGroup/data/LLM/json"
