@@ -103,7 +103,7 @@ def get_anniversary_prompt(tweet_id, text):
         "method": "POST",
         "url": "/v1/chat/completions",
         "body": {
-            "model": "gpt-4o",
+            "model": "gpt-4o-mini",
             "messages": [
                 {
                     "role": "system",
