@@ -1,0 +1,10 @@
+﻿Phase ,Endpoint,Per Resource,Calls,Retention,Output,Total cost,,,Volume pagnation,,
+1a (X API),search/all,$0.005 ,"39,000",100%,"39,000",$195 ,,,Paginates at ,31,days per response
+1b,OpenAI,,"39,000",60%,23400,$2 ,,,Each author,1095,days of data (3 years)
+,,,,,,,,,Requests per author,35.32258065,
+2a,user read,$0.01 ,23400,100%,23400,$234.00 ,,,,,
+2b,filtering in python,$0 ,23400,60%,14040,$0 ,,,,,
+2c,,,,,,,,,,,
+,,,,,,,,,,,
+3a,counts ,$0.01 ,495929.0323,100%,15373800,"$4,959 ",,,,,
+,,,,,,"$5,390 ",,,,,
