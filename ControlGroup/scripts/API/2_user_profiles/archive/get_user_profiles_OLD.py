@@ -1,7 +1,6 @@
 # Author: Hannah Lybbert
 # Created: 2026-06-04
-# Purpose: Phase 2 — pull user profiles for seed tweet authors.
-#          Filtering (Filter A/B) now happens separately in filter_profiles.py.
+# Purpose: Phase 2 — pull user profiles for seed tweet authors and apply filters
 
 import sys
 import os
@@ -13,6 +12,7 @@ import json
 import time
 import requests
 import pandas as pd
+from datetime import date
 from dotenv import load_dotenv
 
 # --- Config ---
@@ -22,6 +22,9 @@ BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN")
 BATCH_SIZE        = 100
 CHECKPOINT_EVERY  = 10           # batches between saves
 SLEEP_BETWEEN     = 1.0          # seconds between API calls
+
+FILTER_B_REF_DATE = date.today()   # reference date for account age (date script is run)
+FILTER_B_CUTOFF   = 364            # max avg weekly tweets (maximum avg weekly tweets observed in treatment group)
 
 FILTER_NAME = "anniversary"   # must match the value used in get_seed_tweets.py; set "" for default pull
 
@@ -40,6 +43,7 @@ else:
     OUTPUT_DIR = _base_profiles
 
 RAW_CSV       = f"{OUTPUT_DIR}/profiles_raw.csv"
+FILTERED_CSV  = f"{OUTPUT_DIR}/profiles_filtered.csv"
 PROGRESS_FILE = f"{OUTPUT_DIR}/progress.json"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -151,23 +155,53 @@ for batch_idx, batch in enumerate(batches[start_batch:], start=start_batch):
 # --- Save final raw (pre-filter) ---
 save_checkpoint(pulled_rows, len(batches) - 1)
 
-# --- Finalize columns ---
+# --- Compute derived columns ---
 df = pd.DataFrame(pulled_rows)
 
 df["seed_tweet_date"]    = pd.to_datetime(df["seed_tweet_date"], utc=True, errors="coerce")
 df["account_created_at"] = pd.to_datetime(df["account_created_at"], utc=True, errors="coerce")
 df["tweet_count"]        = pd.to_numeric(df["tweet_count"], errors="coerce")
-df["not_found"]          = pd.to_numeric(df["not_found"], errors="coerce").fillna(0).astype(int)
 
+ref_date = pd.Timestamp(FILTER_B_REF_DATE, tz="UTC")
+
+df["account_age_weeks"] = (ref_date - df["account_created_at"]).dt.days / 7
+df["avg_weekly_tweets"] = df["tweet_count"] / df["account_age_weeks"]
+
+# Filter A: account must exist >= 18 months before seed tweet date
+# 18 months ≈ 548 days (18 × 30.44)
+df["filter_a_pass"] = (
+    df["account_created_at"].notna() &
+    ((df["seed_tweet_date"] - df["account_created_at"]).dt.days >= 548)
+).astype(int)
+
+# Filter B: avg weekly tweets (as of April 2025) must be <= 403
+df["filter_b_pass"] = (
+    df["avg_weekly_tweets"].notna() &
+    (df["avg_weekly_tweets"] <= FILTER_B_CUTOFF)
+).astype(int)
+
+# Re-save raw with all derived columns appended
 df.to_csv(RAW_CSV, index=False)
-print(f"\nRaw profiles saved to {RAW_CSV}")
+print(f"\nRaw profiles (with filter flags) saved to {RAW_CSV}")
+
+# --- Save filtered ---
+filtered_df = df[
+    (df["not_found"] == 0) &
+    (df["filter_a_pass"] == 1) &
+    (df["filter_b_pass"] == 1)
+].copy()
+filtered_df.to_csv(FILTERED_CSV, index=False)
+print(f"Filtered profiles saved to {FILTERED_CSV}")
 
 # --- Summary ---
 n_total     = len(df)
 n_not_found = (df["not_found"] == 1).sum()
 n_found     = (df["not_found"] == 0).sum()
+n_after_a   = ((df["not_found"] == 0) & (df["filter_a_pass"] == 1)).sum()
+n_final     = len(filtered_df)
 
 print(f"\nSummary:")
 print(f"  Input authors:          {n_total:,}")
 print(f"  Not found by API:       {n_not_found:,}")
-print(f"  Found:                  {n_found:,}")
+print(f"  Pass Filter A (age):    {n_after_a:,}  (of {n_found:,} found)")
+print(f"  Pass Filter A + B:      {n_final:,}")
