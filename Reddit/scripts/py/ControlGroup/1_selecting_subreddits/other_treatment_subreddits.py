@@ -15,7 +15,8 @@ TOP_N              = 20
 # Load
 # ----------------------------------------------------------------
 df = pd.read_csv(INPUT_PATH, low_memory=False)
-print(f"Loaded {len(df):,} rows, {df['author'].nunique():,} unique treatment users")
+total_treatment_users = df["author"].nunique()
+print(f"Loaded {len(df):,} rows, {total_treatment_users:,} unique treatment users")
 
 birth_subreddits = set(pd.read_csv(BIRTH_SUBS_PATH)["subreddit"])
 print(f"Excluding {len(birth_subreddits):,} birth subreddits")
@@ -32,6 +33,10 @@ subreddit_counts = (
     .sort_values("active_treatment_users", ascending=False)
     .head(TOP_N)
 )
+subreddit_counts["share_treatment_users_active"] = (
+    subreddit_counts["active_treatment_users"] / total_treatment_users
+)
+subreddit_counts = subreddit_counts.drop(columns="active_treatment_users")
 
 OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 subreddit_counts.to_csv(OUTPUT_PATH, index=False)
