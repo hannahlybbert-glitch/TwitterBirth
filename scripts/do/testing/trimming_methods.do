@@ -4,14 +4,68 @@
 
 
 * --------------------------------------------------------
-* ---------------- METHOD COMPARISON: 1 vs 4 -------------- *
-* Does trimming on lifetime avg weekly tweets (Method 4 - the only metric
+* ---------------- TRIMMING BOTH METHOD 1 & 2 -------------- *
+* Sequential trim: apply Method 2 (lifetime tweets -> avg weekly
+* tweets) first, then Method 1 (sample-period og/qt volume) second
+* on the Method 2 survivors. Tracks author counts at each step so
+* we can see how many authors we lose along the way.
+* --------------------------------------------------------
+di "Original Sample"
+	distinct author_id
+	
+* --- Method 2: lifetime tweets per week alive ---
+use "$cleaned/user_info_full_sample_CLEAN.dta", clear
+	keep if full_3years == 1
+	gen REF_date = mdy(4,15,2025) if year(date_birth_tweet) == 2018
+	replace REF_date = mdy(7,17,2025) if inrange(year(date_birth_tweet), 2013, 2017)
+	format REF_date %td
+
+	gen weeks_alive = (REF_date - user_created_at) / 7
+	gen avg_weekly_tweets = lifetime_posts / weeks_alive
+
+	display "--- Starting sample (3 full years of data, before any trimming) ---"
+	distinct author_id
+
+	summarize avg_weekly_tweets, detail
+		local p95_m2 = r(p95)
+	drop if avg_weekly_tweets > `p95_m2' & !missing(avg_weekly_tweets)
+
+	display "--- After Method 2 trim (lifetime avg weekly tweets, p95 = " %6.2f `p95_m2' ") ---"
+	distinct author_id
+
+	keep author_id avg_weekly_tweets
+	tempfile method2_survivors
+	save `method2_survivors'
+
+* --- Method 1: sample-period og/qt volume, rescaled to a weekly rate ---
+use "$cleaned/tweet_volume_by_user_full_sample_CLEAN.dta", clear
+	keep if full_3years == 1
+	keep author_id og_qt_sample_tweets
+	duplicates drop author_id, force
+	gen avg_weekly_sample_tweets = og_qt_sample_tweets / 156
+
+* --- Restrict to authors who survived Method 2 and also have volume data ---
+merge 1:1 author_id using `method2_survivors', keep(match) nogen
+
+	display "--- After merging in Method 2 survivors (authors with both metrics) ---"
+	distinct author_id
+
+	summarize avg_weekly_sample_tweets, detail
+		local p95_m1 = r(p95)
+	drop if avg_weekly_sample_tweets > `p95_m1' & !missing(avg_weekly_sample_tweets)
+
+	display "--- After Method 1 trim (sample-period avg weekly tweets, p95 = " %6.2f `p95_m1' ") on top of Method 2 - FINAL sample ---"
+	distinct author_id
+
+* --------------------------------------------------------
+* ---------------- METHOD COMPARISON: 1 vs 2 -------------- *
+* Does trimming on lifetime avg weekly tweets (Method 2 - the only metric
 * available for the control group) retain roughly the same treatment authors
 * as trimming on sample-period og/qt volume (Method 1 - current approach)?
 * --------------------------------------------------------
 
 * --- Method 1 metric: total og/qt tweets during the 3-year sample, rescaled to a
-*     weekly rate (divide by 156 weeks) so it's on the same footing as Method 4's
+*     weekly rate (divide by 156 weeks) so it's on the same footing as Method 2's
 *     avg_weekly_tweets. Dividing by a constant is a pure rescaling - it doesn't
 *     change rank order, so this doesn't change which authors would be trimmed. ---
 use "$cleaned/tweet_volume_by_user_full_sample_CLEAN.dta", clear
@@ -22,9 +76,9 @@ use "$cleaned/tweet_volume_by_user_full_sample_CLEAN.dta", clear
 	tempfile volume_piece
 	save `volume_piece'
 
-* --- Method 4 metric: lifetime tweets per week alive ---
+* --- Method 2 metric: lifetime tweets per week alive ---
 use "$cleaned/user_info_full_sample_CLEAN.dta", clear
-
+	keep if full_3years == 1
 	gen REF_date = mdy(4,15,2025) if year(date_birth_tweet) == 2018
 	replace REF_date = mdy(7,17,2025) if inrange(year(date_birth_tweet), 2013, 2017)
 	format REF_date %td
@@ -42,27 +96,37 @@ use "$cleaned/user_info_full_sample_CLEAN.dta", clear
 * --- Each method's own p95 cutoff, computed on this shared population ---
 	summarize avg_weekly_sample_tweets, detail
 		local p95_m1 = r(p95)
+		di `p95_m1'
 	summarize avg_weekly_tweets, detail
-		local p95_m4 = r(p95)
+		local p95_m2 = r(p95)
+		di `p95_m2'
 
 	gen retained_m1 = !missing(avg_weekly_sample_tweets) & avg_weekly_sample_tweets <= `p95_m1'
-	gen retained_m4 = !missing(avg_weekly_tweets)         & avg_weekly_tweets       <= `p95_m4'
+	gen retained_m2 = !missing(avg_weekly_tweets)         & avg_weekly_tweets       <= `p95_m2'
 
 * --- Author overlap ---
-	tab retained_m1 retained_m4, cell
+	tab retained_m1 retained_m2, cell
 
-	count if retained_m1 == 1 & retained_m4 == 1
+	count if retained_m1 == 1 & retained_m2 == 1
 		local both = r(N)
-	count if retained_m1 == 1 | retained_m4 == 1
+	count if retained_m1 == 1 | retained_m2 == 1
 		local either = r(N)
 	count if retained_m1 == 1
 		local n_m1 = r(N)
-	count if retained_m4 == 1
-		local n_m4 = r(N)
+	count if retained_m2 == 1
+		local n_m2 = r(N)
 
 	display "Jaccard index (retained by both / retained by either): " %4.3f `both'/`either'
-	display "% of Method 1-retained also retained by Method 4: " %4.1f 100*`both'/`n_m1'
-	display "% of Method 4-retained also retained by Method 1: " %4.1f 100*`both'/`n_m4'
+	display "% of Method 1-retained also retained by Method 2: " %4.1f 100*`both'/`n_m1'
+	display "% of Method 2-retained also retained by Method 1: " %4.1f 100*`both'/`n_m2'
+
+* --- Save author_id + retention flags so we can merge in volume data later
+*     and look at what the discordant authors' sample-period behavior looked like ---
+	preserve
+		keep author_id retained_m1 retained_m2
+		keep if (retained_m1 == 0 & retained_m2 == 1)
+		save "$testing/retained_authors.dta", replace
+	restore
 
 * --- Metric correlation (secondary/supporting check) ---
 	* Spearman: rank correlation, robust to the heavy right-skew in tweet counts
@@ -71,8 +135,16 @@ use "$cleaned/user_info_full_sample_CLEAN.dta", clear
 	* Spearman for completeness so we can see how much the skew is driving the difference
 	pwcorr avg_weekly_sample_tweets avg_weekly_tweets, sig
 
+* --- Attach sample-period volume data to each retained author, so we can look
+*     at what their week-by-week behavior looked like ---
+use "$testing/retained_authors.dta", clear
+merge 1:m author_id using "$cleaned/tweet_volume_by_user_full_sample_CLEAN.dta", keep(match) nogen
+	distinct author_id
+
 	
+use $final/ogqt_volume_analysis_sample.dta, clear
 	
+use $final/
 	
 	
 // * --------------------------------------------------------
