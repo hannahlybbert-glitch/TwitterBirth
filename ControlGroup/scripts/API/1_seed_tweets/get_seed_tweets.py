@@ -57,7 +57,7 @@ SLEEP_BETWEEN    = 1.0   # seconds between API calls
 TEST_MODE   = True
 TEST_WEEKS  = 3          # number of weeks to fetch in test mode
 
-_base_dir      = f"ControlGroup/data/seed_tweets/{FILTER_NAME}"
+_base_dir      = f"ControlGroup/data/1_seed_tweets/{FILTER_NAME}"
 OUTPUT_DIR     = f"{_base_dir}/test" if TEST_MODE else _base_dir
 CHECKPOINT_CSV = f"{OUTPUT_DIR}/candidate_pool.csv"
 PROGRESS_FILE  = f"{OUTPUT_DIR}/progress.json"

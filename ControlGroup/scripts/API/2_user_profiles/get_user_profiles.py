@@ -28,7 +28,7 @@ FILTER_NAME = "anniversary"   # must match the value used in get_seed_tweets.py;
 TEST_MODE = True   # set False for full run
 
 _base_seed     = "ControlGroup/data/LLM/seed_tweets"
-_base_profiles = "ControlGroup/data/user_profiles"
+_base_profiles = "ControlGroup/data/2_user_profiles"
 if FILTER_NAME:
     _base_profiles = f"{_base_profiles}/{FILTER_NAME}"
 

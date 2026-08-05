@@ -27,8 +27,8 @@ FILTER_NAME = "animal"   # must match the value used in get_seed_tweets.py; set 
 
 TEST_MODE = True   # set False for full run
 
-_base_profiles = "ControlGroup/data/user_profiles"
-_base_volume   = "ControlGroup/data/post_volume"
+_base_profiles = "ControlGroup/data/2_user_profiles"
+_base_volume   = "ControlGroup/data/3_post_volume"
 if FILTER_NAME:
     _base_profiles = f"{_base_profiles}/{FILTER_NAME}"
     _base_volume   = f"{_base_volume}/{FILTER_NAME}"

@@ -18,7 +18,7 @@ REF_DATE = pd.Timestamp(date.today(), tz="UTC")
 
 FILTER_B_PERCENTILE = 0.95   # trim accounts above this percentile of the control's OWN avg_weekly_tweets
 
-_base_profiles = "ControlGroup/data/user_profiles"
+_base_profiles = "ControlGroup/data/2_user_profiles"
 if FILTER_NAME:
     _base_profiles = f"{_base_profiles}/{FILTER_NAME}"
 

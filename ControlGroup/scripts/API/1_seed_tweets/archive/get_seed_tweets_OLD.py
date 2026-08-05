@@ -70,7 +70,7 @@ SLEEP_BETWEEN    = 1.0    # seconds between API calls
 
 TEST_MODE        = True   # set False for full run
 
-_base_dir  = "ControlGroup/data/seed_tweets"
+_base_dir  = "ControlGroup/data/1_seed_tweets"
 if FILTER_NAME:
     _base_dir = f"{_base_dir}/{FILTER_NAME}"
 OUTPUT_DIR     = f"{_base_dir}/test" if TEST_MODE else _base_dir
