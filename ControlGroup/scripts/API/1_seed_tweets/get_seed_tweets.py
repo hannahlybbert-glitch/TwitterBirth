@@ -47,7 +47,7 @@ QUERY = (
     '-is:retweet -is:reply -is:quote lang:en'
 )
 
-START_DATE      = datetime(2013, 1, 1, tzinfo=timezone.utc)
+START_DATE      = datetime(2016, 1, 1, tzinfo=timezone.utc)
 END_DATE        = datetime(2019, 1, 1, tzinfo=timezone.utc)  # exclusive
 TWEETS_PER_WEEK = 150    # max tweets pulled per week (~39k total across 2013-2018)
 

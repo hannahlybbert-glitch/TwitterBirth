@@ -25,7 +25,7 @@ TEST_MODE   = True
 FILTER_NAME = "anniversary"
 
 _base_seed  = f"ControlGroup/data/1_seed_tweets/{FILTER_NAME}"
-INPUT_PATH  = f"{_base_seed}/test/candidate_pool.csv" if TEST_MODE else f"{_base_seed}/candidate_pool.csv"
+INPUT_PATH  = f"{_base_seed}/test/candidate_pool_CLEAN.csv" if TEST_MODE else f"{_base_seed}/candidate_pool_CLEAN.csv"
 
 _base_out   = "ControlGroup/data/LLM/seed_tweets/test" if TEST_MODE else "ControlGroup/data/LLM/seed_tweets"
 OUTPUT_PATH = f"{_base_out}/anniversary_tweets_classified_test.csv" if TEST_MODE else f"{_base_out}/anniversary_tweets_classified.csv"
@@ -108,23 +108,58 @@ def get_anniversary_prompt(tweet_id, text):
                 {
                     "role": "system",
                     "content": (
-                        "Classify this tweet: is the author marking their own romantic (wedding or dating) anniversary?\n\n"
+                        "Classify this tweet: is the author celebrating their own romantic "
+                        "(wedding or dating) anniversary right now (today) or clearly within "
+                        "1 month of the post?\n\n"
 
-                        "Flag 1 if:\n"
-                        "- Author celebrates their own anniversary with their partner\n"
-                        "  Examples: (\"happy anniversary [partner]\", \"our anniversary\", \"X years married/together\")\n\n"
+                        "Use verb tense and timing as signals: present/present-continuous tense "
+                        "describing the anniversary happening or being spent now = Flag 1. "
+                        "If a specific date/timeframe is given (e.g. \"in 18 days\", \"next week\", "
+                        "\"on the 12th\") and it falls within 1 month, treat as Flag 1 even if future "
+                        "tense. If timing is vague (\"weekend\", \"soon\", \"can't wait\") with no "
+                        "stated date, or the date is more than 1 month away, treat as Flag 0.\n\n"
 
-                        "Flag 0 if:\n"
-                        "- Subject is a third party (friend, family, business, event, show, etc.)\n"
-                        "- Non-romantic anniversary (job, business, show, etc.)\n"
-                        "- Manual quoted-retweet pattern (\"@user: ...\")\n"
-                        "- More than ~1 month from the anniversary date\n\n"
+                        "Flag 1 examples:\n"
+                        "- \"Happy anniversary [partner]!\"\n"
+                        "- \"Date with babe for our anniversary\"\n"
+                        "- \"25 years with my beautiful wife!\"\n"
+                        "- \"Our anniversary is in 18 days\" (specific date, within 1 month)\n\n"
+
+                        "Flag 0 examples:\n"
+                        "- \"So excited for our anniversary weekend\" (vague timing)\n"
+                        "- \"No idea what to get bf for our anniversary\" (planning)\n"
+                        "- \"This is my anniversary present to us lol\" (ambiguous timing, gift-focused)\n"
+                        "- \"Our anniversary is in 3 months\" (specific date, beyond 1 month)\n"
+                        "- Third party, business, or non-romantic anniversary\n"
+                        "- Manual quoted-retweet pattern (\"@user: ...\")\n\n"
+
+                        "When uncertain, flag 0.\n\n"
 
                         "Respond on exactly two lines:\n"
                         "1: anniversary_flag (1 or 0)\n"
                         "2: confidence (0–100)"
                     )
                 },
+                # {
+                #     "role": "system",
+                #     "content": (
+                #         "Classify this tweet: is the author marking their own romantic (wedding or dating) anniversary?\n\n"
+
+                #         "Flag 1 if:\n"
+                #         "- Author celebrates their own anniversary with their partner\n"
+                #         "  Examples: (\"happy anniversary [partner]\", \"our anniversary\", \"X years married/together\")\n\n"
+
+                #         "Flag 0 if:\n"
+                #         "- Subject is a third party (friend, family, business, event, show, etc.)\n"
+                #         "- Non-romantic anniversary (job, business, show, etc.)\n"
+                #         "- Manual quoted-retweet pattern (\"@user: ...\")\n"
+                #         "- More than ~1 month from the anniversary date\n\n"
+
+                #         "Respond on exactly two lines:\n"
+                #         "1: anniversary_flag (1 or 0)\n"
+                #         "2: confidence (0–100)"
+                #     )
+                # },
                 {
                     "role": "user",
                     "content": (

@@ -1,6 +1,9 @@
 # Author: Hannah Lybbert
 # Purpose: Apply Filter A (account age) and Filter B (avg weekly tweets) to
 #          profiles_raw.csv (from get_user_profiles.py) and save profiles_filtered.csv.
+#          Filter B uses a fixed cutoff (FILTER_B_CUTOFF) equal to the treatment
+#          group's 95th percentile of avg_weekly_tweets, applied to the control
+#          group as well so both groups share the same threshold.
 
 import os
 
@@ -16,7 +19,7 @@ TEST_MODE   = True            # set False for full run
 # pulled it, so avg_weekly_tweets is measured against that pull date, not seed_tweet_date.
 REF_DATE = pd.Timestamp(date.today(), tz="UTC")
 
-FILTER_B_PERCENTILE = 0.95   # trim accounts above this percentile of the control's OWN avg_weekly_tweets
+FILTER_B_CUTOFF = 79.94      # treatment group's 95th percentile of avg_weekly_tweets; same cutoff applied to control
 
 _base_profiles = "ControlGroup/data/2_user_profiles"
 if FILTER_NAME:
@@ -46,11 +49,10 @@ def main():
         ((df["seed_tweet_date"] - df["account_created_at"]).dt.days >= 548)
     ).astype(int)
 
-    # Filter B: avg weekly tweets must be <= the control sample's own Nth percentile
-    filter_b_cutoff = df["avg_weekly_tweets"].quantile(FILTER_B_PERCENTILE)
+    # Filter B: avg weekly tweets must be <= the treatment group's 95th percentile cutoff
     df["filter_b_pass"] = (
         df["avg_weekly_tweets"].notna() &
-        (df["avg_weekly_tweets"] <= filter_b_cutoff)
+        (df["avg_weekly_tweets"] <= FILTER_B_CUTOFF)
     ).astype(int)
 
     df.to_csv(RAW_CSV, index=False)
@@ -68,12 +70,18 @@ def main():
     n_after_a   = ((df["not_found"] == 0) & (df["filter_a_pass"] == 1)).sum()
     n_final     = len(filtered_df)
 
-    print(f"Filter B cutoff: avg_weekly_tweets <= {filter_b_cutoff:.2f}  (control's {FILTER_B_PERCENTILE:.0%} percentile)")
+    print(f"Filter B cutoff: avg_weekly_tweets <= {FILTER_B_CUTOFF:.2f}  (treatment group's 95th percentile)")
     print(f"\nSummary:")
     print(f"  Input authors:          {n_total:,}")
     print(f"  Not found by API:       {n_not_found:,}")
     print(f"  Pass Filter A (age):    {n_after_a:,}  (of {n_found:,} found)")
     print(f"  Pass Filter A + B:      {n_final:,}")
+
+    print(f"\nFiltered avg_weekly_tweets:")
+    print(f"  Mean:                   {filtered_df['avg_weekly_tweets'].mean():.2f}")
+    print(f"  50th percentile:        {filtered_df['avg_weekly_tweets'].quantile(0.50):.2f}")
+    print(f"  95th percentile:        {filtered_df['avg_weekly_tweets'].quantile(0.95):.2f}")
+
     print(f"\nFiltered profiles saved to {FILTERED_CSV}")
 
 

@@ -134,26 +134,27 @@ for _, user_row in remaining.iterrows():
             f"from:{author_id} -is:retweet -is:reply",
             start_time, end_time, BEARER_TOKEN
         )
-        time.sleep(SLEEP_BETWEEN)
-
-        counts_b = paginate_counts(
-            f"from:{author_id} (is:retweet OR is:reply)",
-            start_time, end_time, BEARER_TOKEN
-        )
+        # time.sleep(SLEEP_BETWEEN)
+        #
+        # counts_b = paginate_counts(
+        #     f"from:{author_id} (is:retweet OR is:reply)",
+        #     start_time, end_time, BEARER_TOKEN
+        # )
     except Exception as e:
         print(f"  ERROR: {e} — skipping {author_id}")
         time.sleep(SLEEP_BETWEEN)
         continue
 
     df_a = pd.DataFrame(counts_a) if counts_a else pd.DataFrame(columns=["date", "count"])
-    df_b = pd.DataFrame(counts_b) if counts_b else pd.DataFrame(columns=["date", "count"])
+    # df_b = pd.DataFrame(counts_b) if counts_b else pd.DataFrame(columns=["date", "count"])
 
     df_a = df_a.rename(columns={"count": "original_quote_count"})
-    df_b = df_b.rename(columns={"count": "retweet_reply_count"})
+    # df_b = df_b.rename(columns={"count": "retweet_reply_count"})
 
-    user_df = df_a.merge(df_b, on="date", how="outer").fillna(0)
+    # user_df = df_a.merge(df_b, on="date", how="outer").fillna(0)
+    user_df = df_a.copy()
     user_df["author_id"] = author_id
-    user_df = user_df[["author_id", "date", "original_quote_count", "retweet_reply_count"]]
+    user_df = user_df[["author_id", "date", "original_quote_count"]]
 
     buffer.append(user_df)
     completed_ids.add(author_id)
