@@ -24,7 +24,14 @@ OUTPUT_CSV = f"{INPUT_DIR}/candidate_pool_CLEAN.csv"
 def main():
     df = pd.read_csv(INPUT_CSV)
 
-    df["text_norm"] = df["text"].str.lower().str.strip()
+    # Strip URLs before comparing — t.co links are unique per tweet, so an
+    # otherwise identical copy-pasted tweet won't match on raw text alone.
+    df["text_norm"] = (
+        df["text"].str.lower()
+        .str.replace(r"https?://\S+", "", regex=True)
+        .str.replace(r"\s+", " ", regex=True)
+        .str.strip()
+    )
     dupe_counts = df.groupby("text_norm")["author_id"].nunique()
     copypasta_texts = dupe_counts[dupe_counts > 1].index
     df["is_copypasta"] = df["text_norm"].isin(copypasta_texts)
