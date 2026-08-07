@@ -127,8 +127,8 @@ def get_anniversary_prompt(tweet_id, text):
 
                         "Flag 0 examples:\n"
                         "- \"So excited for our anniversary weekend\" (vague timing)\n"
-                        "- \"No idea what to get bf for our anniversary\" (planning)\n"
-                        "- \"This is my anniversary present to us lol\" (ambiguous timing, gift-focused)\n"
+                        "- \"No idea what to get my husband/bf for our anniversary\" or \"Booked reservation for our anniversary\" (planning)\n"
+                        "- \"This is my anniversary present to us\" (ambiguous timing, gift-focused)\n"
                         "- \"Our anniversary is in 3 months\" (specific date, beyond 1 month)\n"
                         "- Third party, business, or non-romantic anniversary\n"
                         "- Manual quoted-retweet pattern (\"@user: ...\")\n\n"
