@@ -17,4 +17,12 @@ use "$cleaned/user_info_full_sample_CLEAN.dta", clear
 merge m:1 author_id using `analysis_ids', keep(match) nogen
 distinct author_id
 
+* Merge in avg_weekly_tweets computed in lifetime_trim.do (single source of truth
+* for this metric, rather than recomputing it here with a second copy of the
+* REF_date / weeks_alive logic)
+merge m:1 author_id using "$cleaned/lifetime_trim_authors.dta", keep(match) nogen keepusing(avg_weekly_tweets)
+distinct author_id
+
+sum avg_weekly_tweets, d
+
 save "$final/user_analysis_sample.dta", replace
