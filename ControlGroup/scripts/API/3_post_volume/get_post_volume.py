@@ -23,7 +23,7 @@ BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN")
 SLEEP_BETWEEN    = 0.5   # seconds between each API call
 CHECKPOINT_EVERY = 10    # users between progress saves
 
-FILTER_NAME = "animal"   # must match the value used in get_seed_tweets.py; set "" for default pull
+FILTER_NAME = "anniversary"   # must match the value used in get_seed_tweets.py; set "" for default pull
 
 TEST_MODE = True   # set False for full run
 
@@ -66,7 +66,7 @@ remaining = users_df[~users_df["author_id"].isin(completed_ids)]
 print(f"Remaining: {len(remaining):,} users to pull")
 
 # --- Helpers ---
-def paginate_counts(query, start_time, end_time, bearer_token, max_retries=5):
+def paginate_counts(query, start_time, end_time, bearer_token, authors_done, max_retries=5):
     """Fetch all daily count buckets for a query+window, paging through next_token."""
     params = {
         "query":       query,
@@ -85,8 +85,10 @@ def paginate_counts(query, start_time, end_time, bearer_token, max_retries=5):
             if response.status_code == 429:
                 reset_ts = response.headers.get("x-rate-limit-reset")
                 wait = max(int(reset_ts) - int(time.time()) + 5, 5) if reset_ts else 60 * (2 ** attempt)
-                print(f"    Rate limited. Waiting {wait}s (attempt {attempt + 1}/{max_retries})...")
+                print(f"    RATE LIMITED after {authors_done:,} authors completed so far. "
+                      f"Waiting {wait}s (~{wait / 60:.1f} min) before continuing...")
                 time.sleep(wait)
+                print("    Resuming.")
             else:
                 response.raise_for_status()
         else:
@@ -132,7 +134,7 @@ for _, user_row in remaining.iterrows():
     try:
         counts_a = paginate_counts(
             f"from:{author_id} -is:retweet -is:reply",
-            start_time, end_time, BEARER_TOKEN
+            start_time, end_time, BEARER_TOKEN, authors_done=len(completed_ids)
         )
         # time.sleep(SLEEP_BETWEEN)
         #
