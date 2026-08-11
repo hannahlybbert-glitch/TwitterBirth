@@ -20,6 +20,10 @@ global hand_coding "$dir/data/raw/hand_coding"
 global RA_training "$dir/data/raw/hand_coding/RA_training"
 global sentiment "$dir/data/sentiment_analysis"
 
+* Control Data
+global control_volume "$dir/ControlGroup/data/3_post_volume/anniversary"
+global control_user "$dir/ControlGroup/data/2_user_profiles/anniversary"
+
 * Reddit data
 global Reddit_cleaned "$dir/Reddit/data/intermediate/cleaned_raw"
 global Reddit_BP "$dir/Reddit/data/intermediate/births_and_posts"

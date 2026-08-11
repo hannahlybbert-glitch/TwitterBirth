@@ -10,7 +10,7 @@ import os
 import pandas as pd
 from datetime import date
 
-os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")))
 
 FILTER_NAME = "anniversary"   # must match the value used in get_user_profiles.py; set "" for default pull
 TEST_MODE   = True            # set False for full run

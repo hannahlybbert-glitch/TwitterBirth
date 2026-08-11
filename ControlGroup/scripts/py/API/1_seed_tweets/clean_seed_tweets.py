@@ -9,7 +9,7 @@ import os
 
 import pandas as pd
 
-os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")))
 
 FILTER_NAME = "anniversary"   # must match the value used in get_seed_tweets.py; set "" for default pull
 TEST_MODE   = True            # set False for full run

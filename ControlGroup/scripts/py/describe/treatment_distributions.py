@@ -6,7 +6,7 @@
 import os
 import pandas as pd
 
-os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
 # --- File paths ---
 INPUT_DTA    = "data/final/user_analysis_sample.dta"

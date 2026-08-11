@@ -16,7 +16,7 @@ OUTPUT_COLUMNS = ["author_id", "tweet_id", "created_at", "week_start", "text", "
 
 
 def main():
-    os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
+    os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")))
 
     df = pd.read_csv(INPUT_PATH)
     extracted = df[df["anniversary_flag"] == 1][OUTPUT_COLUMNS]

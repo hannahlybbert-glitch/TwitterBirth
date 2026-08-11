@@ -7,7 +7,7 @@ import os
 
 import pandas as pd
 
-os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
 PROFILES_CSV   = "ControlGroup/data/2_user_profiles/anniversary/test/profiles_filtered.csv"
 SEED_TWEETS_CSV = "ControlGroup/data/LLM/seed_tweets/test/anniversaries_extracted_test.csv"

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")))
 
 CONTROL_PATH   = "ControlGroup/data/2_user_profiles/anniversary/test/profiles_filtered.csv"
 # TREATMENT_PATH = "data/testing/sample_authors.csv"

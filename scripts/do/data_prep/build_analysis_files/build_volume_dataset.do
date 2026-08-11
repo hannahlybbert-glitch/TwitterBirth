@@ -13,11 +13,14 @@ use "$cleaned/tweet_volume_by_user_full_sample_CLEAN.dta", clear
 
 di "Authors before sample-period (og/qt) trim"
 	distinct author_id
+	
+gen og_qt_weekly_sample_tweets = og_qt_sample_tweets / 156
+label variable og_qt_weekly_sample_tweets "Average weekly original/quote tweets for the author across the sample"
 
-summarize og_qt_sample_tweets, detail
-	local p95 = r(p95)
+summarize og_qt_weekly_sample_tweets, detail
+	local p95 = r(p95) 
 
-	drop if og_qt_sample_tweets > `p95' & !missing(og_qt_sample_tweets)
+	drop if og_qt_weekly_sample_tweets > `p95' & !missing(og_qt_weekly_sample_tweets)
 
 di "Authors after sample-period (og/qt) trim"
 	distinct author_id

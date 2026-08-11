@@ -15,7 +15,7 @@ import glob
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
 load_dotenv(dotenv_path="config/.env")
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
