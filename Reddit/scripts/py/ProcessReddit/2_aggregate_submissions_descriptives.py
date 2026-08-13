@@ -1,0 +1,163 @@
+# Author: Hannah Lybbert
+# Created: 2026-08-13
+# Updated: 2026-08-13
+# Purpose: Aggregate per-file outputs from 1_profile_submissions_file.py into a
+#          macro-level view of the full submissions archive — yearly trends, schema
+#          evolution across files, and true cross-file top-subreddit rankings.
+
+import json
+from pathlib import Path
+
+import pandas as pd
+
+ROOT          = Path(__file__).resolve().parents[4]
+PER_FILE_DIR  = ROOT / "Reddit/output/ProcessReddit/submissions_descriptives/per_file"
+OUTPUT_DIR    = ROOT / "Reddit/output/ProcessReddit/submissions_descriptives"
+
+TOP_N = 25
+
+# ----------------------------------------------------------------
+# Load every per-file summary.json
+# ----------------------------------------------------------------
+summary_paths = sorted(PER_FILE_DIR.glob("*__summary.json"))
+failed_paths  = sorted(PER_FILE_DIR.glob("*__FAILED.txt"))
+
+print(f"Found {len(summary_paths):,} completed file summaries, {len(failed_paths):,} failed files")
+if failed_paths:
+    print("  Failed files:")
+    for p in failed_paths:
+        print(f"    {p.name}: {p.read_text().strip()}")
+
+summaries = [json.loads(p.read_text()) for p in summary_paths]
+if not summaries:
+    raise SystemExit(f"No completed summaries found in {PER_FILE_DIR} — run 1_profile_submissions_file.py first")
+
+file_level = pd.DataFrame(summaries)
+
+# ----------------------------------------------------------------
+# File-level manifest (one row per RS_*.zst file processed)
+# ----------------------------------------------------------------
+manifest_cols = [
+    "file", "year", "month", "file_size_bytes", "n_rows", "n_bad_lines",
+    "elapsed_sec", "rows_per_sec", "n_columns", "date_min", "date_max",
+    "n_unique_subreddits", "n_unique_authors", "deleted_removed_rows",
+    "pct_deleted_removed", "score_mean", "num_comments_mean",
+    "pct_is_self", "pct_over_18",
+]
+file_level_out = file_level[manifest_cols].sort_values(["year", "month"])
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+file_level_out.to_csv(OUTPUT_DIR / "file_level_summary.csv", index=False)
+print(f"\nSaved file-level manifest ({len(file_level_out)} files) to file_level_summary.csv")
+
+# ----------------------------------------------------------------
+# Yearly trends — growth curve of the platform in this data
+# ----------------------------------------------------------------
+yearly = (
+    file_level.groupby("year")
+    .agg(
+        n_files=("file", "count"),
+        n_rows=("n_rows", "sum"),
+        n_bad_lines=("n_bad_lines", "sum"),
+        deleted_removed_rows=("deleted_removed_rows", "sum"),
+        avg_pct_deleted_removed=("pct_deleted_removed", "mean"),
+        avg_n_columns=("n_columns", "mean"),
+        avg_pct_is_self=("pct_is_self", "mean"),
+        avg_pct_over_18=("pct_over_18", "mean"),
+        total_file_size_mb=("file_size_bytes", lambda s: s.sum() / 1_048_576),
+    )
+    .round(2)
+    .sort_index()
+)
+yearly.to_csv(OUTPUT_DIR / "yearly_summary.csv")
+print("Saved yearly trends to yearly_summary.csv")
+
+# ----------------------------------------------------------------
+# Schema evolution — which columns exist in which files, over time.
+# Answers "was 59 columns a one-year thing, or does it vary a lot?"
+# ----------------------------------------------------------------
+schema_rows = []
+presence = {}
+for s in summaries:
+    schema_rows.append({
+        "file": s["file"], "year": s["year"], "month": s["month"],
+        "n_columns": s["n_columns"], "columns": ";".join(s["columns"]),
+    })
+    presence[s["file"]] = set(s["columns"])
+
+schema_evolution = pd.DataFrame(schema_rows).sort_values(["year", "month"])
+schema_evolution.to_csv(OUTPUT_DIR / "schema_evolution.csv", index=False)
+
+all_cols_ever = sorted(set().union(*presence.values())) if presence else []
+presence_matrix = pd.DataFrame(
+    {col: [1 if col in presence[f] else 0 for f in presence] for col in all_cols_ever},
+    index=list(presence.keys()),
+).sort_index()
+presence_matrix.to_csv(OUTPUT_DIR / "schema_presence_matrix.csv")
+print(f"Saved schema evolution ({len(all_cols_ever)} distinct columns ever seen) to schema_evolution.csv / schema_presence_matrix.csv")
+
+# ----------------------------------------------------------------
+# Top N subreddits by TOTAL POSTS — sum per-file counts, exact
+# (no double-counting risk here since posts are inherently disjoint across files)
+# ----------------------------------------------------------------
+stats_paths = sorted(PER_FILE_DIR.glob("*__subreddit_stats.csv"))
+all_subreddit_stats = pd.concat((pd.read_csv(p) for p in stats_paths), ignore_index=True)
+
+top_by_posts = (
+    all_subreddit_stats.groupby("subreddit")["n_posts"]
+    .sum()
+    .sort_values(ascending=False)
+    .head(TOP_N)
+    .reset_index()
+)
+top_by_posts.to_csv(OUTPUT_DIR / f"top_{TOP_N}_subreddits_by_posts.csv", index=False)
+print(f"Saved top {TOP_N} subreddits by total posts")
+
+# ----------------------------------------------------------------
+# Top N subreddits by UNIQUE AUTHORS — true cross-file dedup.
+# Per-file unique-author counts can't just be summed (an author active
+# in multiple months would be double-counted), so union the raw
+# (subreddit, author) pairs across every file first, then count distinct.
+# ----------------------------------------------------------------
+pairs_paths = sorted(PER_FILE_DIR.glob("*__subreddit_authors.parquet"))
+all_pairs = pd.concat((pd.read_parquet(p) for p in pairs_paths), ignore_index=True)
+all_pairs = all_pairs.drop_duplicates(subset=["subreddit", "author"])
+
+top_by_authors = (
+    all_pairs.groupby("subreddit")["author"]
+    .nunique()
+    .sort_values(ascending=False)
+    .head(TOP_N)
+    .reset_index(name="n_unique_authors")
+)
+top_by_authors.to_csv(OUTPUT_DIR / f"top_{TOP_N}_subreddits_by_authors.csv", index=False)
+print(f"Saved top {TOP_N} subreddits by unique authors")
+
+# ----------------------------------------------------------------
+# True global unique author count across every file processed so far
+# ----------------------------------------------------------------
+global_unique_authors = all_pairs["author"].nunique()
+global_unique_subreddits = all_pairs["subreddit"].nunique()
+
+# ----------------------------------------------------------------
+# Console summary
+# ----------------------------------------------------------------
+print(f"\n{'=' * 60}")
+print("MACRO SUMMARY")
+print(f"{'=' * 60}")
+print(f"Files processed:              {len(summaries):,}")
+print(f"Date range covered:           {file_level['date_min'].min()}  to  {file_level['date_max'].max()}")
+print(f"Total rows (all files):       {file_level['n_rows'].sum():,}")
+print(f"Total deleted/removed rows:   {file_level['deleted_removed_rows'].sum():,} "
+      f"({100 * file_level['deleted_removed_rows'].sum() / file_level['n_rows'].sum():.2f}%)")
+print(f"Global unique authors:        {global_unique_authors:,}  (excl. [deleted]/[removed])")
+print(f"Global unique subreddits:     {global_unique_subreddits:,}")
+print(f"Distinct columns ever seen:   {len(all_cols_ever)}")
+print(f"Column count range by file:   {file_level['n_columns'].min()}–{file_level['n_columns'].max()}")
+
+print(f"\n--- Top {TOP_N} subreddits by total posts ---")
+print(top_by_posts.to_string(index=False))
+
+print(f"\n--- Top {TOP_N} subreddits by unique authors ---")
+print(top_by_authors.to_string(index=False))
+
+print(f"\nAll outputs saved to {OUTPUT_DIR}")

@@ -1,0 +1,37 @@
+column,observed_types_in_sample,pct_null
+author,str (4999),0.0
+author_flair_css_class,"NoneType (4325), str (675)",86.68
+author_flair_text,"NoneType (4310), str (690)",86.48
+banned_by,NoneType (5000),100.0
+created_utc,int (5000),0.0
+distinguished,"NoneType (4988), str (12)",99.77
+domain,str (5000),0.0
+downs,int (5000),0.0
+edited,"bool (4814), int (186)",0.0
+gilded,int (5000),0.0
+id,str (5000),0.0
+is_self,bool (5000),0.0
+link_flair_css_class,"NoneType (4768), str (232)",95.69
+link_flair_text,"NoneType (4788), str (212)",95.91
+media,"NoneType (4473), dict (527)",91.32
+media_embed,dict (5000),0.0
+mod_reports,list (5000),0.0
+num_comments,int (5000),0.0
+over_18,bool (5000),0.0
+permalink,str (5000),0.0
+promoted,bool (1),0.0
+report_reasons,NoneType (5000),100.0
+retrieved_on,int (5000),0.0
+score,int (5000),0.0
+secure_media,NoneType (5000),100.0
+secure_media_embed,dict (5000),0.0
+selftext,str (5000),0.0
+selftext_html,"NoneType (3441), str (1559)",70.18
+stickied,bool (5000),0.0
+subreddit,str (5000),0.0
+subreddit_id,str (5000),0.0
+thumbnail,str (5000),0.0
+title,str (5000),0.0
+ups,int (5000),0.0
+url,str (5000),0.0
+user_reports,list (5000),0.0
