@@ -23,6 +23,7 @@ global sentiment "$dir/data/sentiment_analysis"
 * Control Data
 global control_volume "$dir/ControlGroup/data/3_post_volume/anniversary"
 global control_user "$dir/ControlGroup/data/2_user_profiles/anniversary"
+global control_cleaned "$dir/ControlGroup/data/cleaned"
 
 * Reddit data
 global Reddit_cleaned "$dir/Reddit/data/intermediate/cleaned_raw"
@@ -45,6 +46,9 @@ global classif_figs "$dir/output/sentiment_analysis/figures/classification"
 global family_figs "$dir/output/sentiment_analysis/figures/tweetNLP/topic_class/family"
 global politics_figs "$dir/output/sentiment_analysis/figures/tweetNLP/topic_class/politics"
 global sports_figs "$dir/output/sentiment_analysis/figures/tweetNLP/topic_class/sports"
+
+* control output 
+global volume_control "$dir/ControlGroup/output/volume"
 
 * ----------------------------------------------------------------
 * OUTPUT DIRECTORIES — final figures

@@ -41,6 +41,7 @@ def main():
     # so write these out as strings rather than native Stata datetimes.
     df["seed_tweet_date"]    = pd.to_datetime(df["seed_tweet_date"], utc=True, errors="coerce").dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
     df["account_created_at"] = pd.to_datetime(df["account_created_at"], utc=True, errors="coerce").dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    df["date_birth_placebo"] = pd.to_datetime(df["date_birth_placebo"], utc=True, errors="coerce").dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     df.to_stata(USER_INFO_DTA, write_index=False, version=118)  # v118 = UTF-8, avoids latin-1 errors on bio/tweet text

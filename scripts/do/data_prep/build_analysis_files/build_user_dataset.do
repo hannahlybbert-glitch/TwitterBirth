@@ -26,3 +26,5 @@ distinct author_id
 sum avg_weekly_tweets, d
 
 save "$final/user_analysis_sample.dta", replace
+export delimited using "$final/user_analysis_sample.csv", replace quote delimiter(",") nolabel
+

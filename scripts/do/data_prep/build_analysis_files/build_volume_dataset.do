@@ -27,6 +27,9 @@ di "Authors after sample-period (og/qt) trim"
 di "95th percentile cut off (use for control phase 3 Volume filtering):"
 di "p95 = " %6.2f `p95' ""
 
+* generate treated variable
+gen treated = 1
+
 save "$final/ogqt_volume_analysis_sample.dta", replace
 
 
@@ -53,6 +56,9 @@ summarize total_sample_tweets, detail
 di "Authors after sample-period (rt/reply) trim"
 	distinct author_id
 	distinct author_id if !missing(rt_reply_count)
+	
+* generate treated variable
+gen treated = 1
 
 save "$final/tweet_volume_analysis_sample.dta", replace
 

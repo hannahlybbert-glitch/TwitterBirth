@@ -74,7 +74,7 @@ USERS_URL = "https://api.twitter.com/2/users"
 def fetch_users_batch(ids, bearer_token, max_retries=5):
     params  = {
         "ids":          ",".join(ids),
-        "user.fields":  "username,description,created_at,public_metrics,verified",
+        "user.fields":  "username,name,description,created_at,public_metrics,verified",
     }
     headers = {"Authorization": f"Bearer {bearer_token}"}
 

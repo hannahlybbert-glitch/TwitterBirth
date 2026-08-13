@@ -1,7 +1,8 @@
 # Author: Hannah Lybbert
 # Created: 2026-06-04
 # Purpose: Phase 3 — pull daily post volume for filtered users,
-#          18 months before and after each user's seed tweet date
+#          18 months before and after each user's placebo birth date
+#          (date_birth_placebo, clamped to not precede account creation)
 
 import sys
 import os
@@ -51,8 +52,9 @@ COUNTS_URL = "https://api.twitter.com/2/tweets/counts/all"
 
 # --- Load inputs ---
 users_df = pd.read_csv(INPUT_CSV, dtype=str)
-users_df["seed_tweet_date"] = pd.to_datetime(users_df["seed_tweet_date"], utc=True)
-users_df = users_df[["author_id", "seed_tweet_date"]].drop_duplicates(subset="author_id")
+users_df["date_birth_placebo"] = pd.to_datetime(users_df["date_birth_placebo"], utc=True)
+users_df["account_created_at"] = pd.to_datetime(users_df["account_created_at"], utc=True)
+users_df = users_df[["author_id", "date_birth_placebo", "account_created_at"]].drop_duplicates(subset="author_id")
 print(f"Loaded {len(users_df):,} filtered users")
 
 # --- Resume from checkpoint ---
@@ -123,13 +125,16 @@ buffer = []
 users_since_checkpoint = 0
 
 for _, user_row in remaining.iterrows():
-    author_id = user_row["author_id"]
-    seed_dt   = user_row["seed_tweet_date"]
+    author_id  = user_row["author_id"]
+    placebo_dt = user_row["date_birth_placebo"]
+    created_at = user_row["account_created_at"]
 
-    start_time = seed_dt - relativedelta(months=18)
-    end_time   = seed_dt + relativedelta(months=18)
+    start_time = placebo_dt - relativedelta(months=18)
+    if pd.notna(created_at) and created_at > start_time:
+        start_time = created_at   # clamp to account creation, matching treatment's begin_date logic
+    end_time = placebo_dt + relativedelta(months=18)
 
-    print(f"[{author_id}]  seed={seed_dt.date()}  window: {start_time.date()} → {end_time.date()}")
+    print(f"[{author_id}]  placebo_birth={placebo_dt.date()}  window: {start_time.date()} → {end_time.date()}")
 
     try:
         counts_a = paginate_counts(
@@ -155,8 +160,10 @@ for _, user_row in remaining.iterrows():
 
     # user_df = df_a.merge(df_b, on="date", how="outer").fillna(0)
     user_df = df_a.copy()
-    user_df["author_id"] = author_id
-    user_df = user_df[["author_id", "date", "original_quote_count"]]
+    user_df["author_id"]  = author_id
+    user_df["begin_date"] = start_time.strftime("%Y-%m-%d")
+    user_df["end_date"]   = end_time.strftime("%Y-%m-%d")
+    user_df = user_df[["author_id", "date", "original_quote_count", "begin_date", "end_date"]]
 
     buffer.append(user_df)
     completed_ids.add(author_id)
