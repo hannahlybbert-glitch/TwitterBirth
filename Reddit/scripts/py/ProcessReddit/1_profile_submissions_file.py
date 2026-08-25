@@ -1,15 +1,20 @@
 # Author: Hannah Lybbert
 # Created: 2026-08-13
-# Updated: 2026-08-13
+# Updated: 2026-08-14
 # Purpose: Profile a single Reddit submissions .zst dump (rows, schema, subreddit/author
 #          activity) — the per-file "map" step of a cluster-wide descriptives run.
 #          Run with no arguments to loop over every RS_*.zst file in SUBMISSIONS_DIR,
 #          skipping files already profiled (resumable). Pass one file path to profile
-#          just that file — the shape needed for SLURM array jobs / parallel launches.
+#          just that file — the shape used by process.sh's per-file loop.
 #          Pair with 2_aggregate_submissions_descriptives.py to combine results.
+# Paths:   SUBMISSIONS_DIR / OUTPUT_DIR default to the local repo layout, but can be
+#          overridden with the REDDIT_SUBMISSIONS_DIR / REDDIT_OUTPUT_DIR env vars —
+#          set these in process.sh, since the raw data lives at a different path
+#          structure on the cluster (no nested "Reddit/" folder there).
 
 import io
 import json
+import os
 import re
 import sys
 import time
@@ -20,8 +25,9 @@ import pandas as pd
 import zstandard as zstd
 
 ROOT            = Path(__file__).resolve().parents[4]
-SUBMISSIONS_DIR = ROOT / "Reddit/raw/submissions"
-OUTPUT_DIR      = ROOT / "Reddit/output/ProcessReddit/submissions_descriptives/per_file"
+SUBMISSIONS_DIR = Path(os.environ.get("REDDIT_SUBMISSIONS_DIR", ROOT / "Reddit/raw/submissions"))
+OUTPUT_BASE     = Path(os.environ.get("REDDIT_OUTPUT_DIR", ROOT / "Reddit/output/ProcessReddit"))
+OUTPUT_DIR      = OUTPUT_BASE / "submissions_descriptives/per_file"
 
 MAX_WINDOW = 2 ** 31  # some dumps use zstd windows larger than the library default (2**27)
 FNAME_RE   = re.compile(r"RS_(\d{4})-(\d{2})\.zst$")
@@ -177,23 +183,32 @@ def save_outputs(stem, summary, subreddit_stats, subreddit_author_pairs, output_
     output_dir.mkdir(parents=True, exist_ok=True)
 
     summary_path = output_dir / f"{stem}__summary.json"
-    tmp = summary_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(summary, indent=2))
-    tmp.replace(summary_path)
+    stats_path   = output_dir / f"{stem}__subreddit_stats.csv"
+    pairs_path   = output_dir / f"{stem}__subreddit_authors.parquet"
 
-    stats_path = output_dir / f"{stem}__subreddit_stats.csv"
-    tmp = stats_path.with_suffix(".csv.tmp")
-    subreddit_stats.to_csv(tmp, index=False)
-    tmp.replace(stats_path)
+    tmp_summary = summary_path.with_suffix(".json.tmp")
+    tmp_stats   = stats_path.with_suffix(".csv.tmp")
+    tmp_pairs   = pairs_path.with_suffix(".parquet.tmp")
 
-    pairs_path = output_dir / f"{stem}__subreddit_authors.parquet"
-    tmp = pairs_path.with_suffix(".parquet.tmp")
-    subreddit_author_pairs.to_parquet(tmp, index=False)
-    tmp.replace(pairs_path)
+    # Write all three temp files first, then rename all three only if every
+    # write succeeds — a failure partway through (e.g. a missing parquet
+    # engine) must never leave a partial set of "final" files behind, since
+    # already_done() would then wrongly treat this file as complete forever.
+    tmp_summary.write_text(json.dumps(summary, indent=2))
+    subreddit_stats.to_csv(tmp_stats, index=False)
+    subreddit_author_pairs.to_parquet(tmp_pairs, index=False)
+
+    tmp_summary.replace(summary_path)
+    tmp_stats.replace(stats_path)
+    tmp_pairs.replace(pairs_path)
 
 
 def already_done(stem, output_dir):
-    return (output_dir / f"{stem}__summary.json").exists()
+    return (
+        (output_dir / f"{stem}__summary.json").exists()
+        and (output_dir / f"{stem}__subreddit_stats.csv").exists()
+        and (output_dir / f"{stem}__subreddit_authors.parquet").exists()
+    )
 
 
 def run_one(path, output_dir=OUTPUT_DIR):
@@ -201,12 +216,12 @@ def run_one(path, output_dir=OUTPUT_DIR):
     print(f"[{stem}] profiling {path.name} ({path.stat().st_size / 1_048_576:,.1f} MB)...")
     try:
         summary, subreddit_stats, subreddit_author_pairs = profile_file(path)
+        save_outputs(stem, summary, subreddit_stats, subreddit_author_pairs, output_dir)
     except Exception as e:
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / f"{stem}__FAILED.txt").write_text(f"{type(e).__name__}: {e}")
         print(f"[{stem}] FAILED: {e}")
         return
-    save_outputs(stem, summary, subreddit_stats, subreddit_author_pairs, output_dir)
     print(
         f"[{stem}] done — {summary['n_rows']:,} rows, {summary['n_unique_authors']:,} authors, "
         f"{summary['n_unique_subreddits']:,} subreddits, {summary['n_columns']} columns "

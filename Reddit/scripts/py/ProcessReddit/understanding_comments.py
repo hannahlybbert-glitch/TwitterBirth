@@ -1,13 +1,18 @@
 # Author: Hannah Lybbert
 # Created: 2026-08-13
-# Updated: 2026-08-13
+# Updated: 2026-08-14
 # Purpose: Profile the structure of a raw Reddit comments .zst dump (columns,
 #          types, row counts, subreddit/author activity) to scope out cluster-scale
 #          processing of the full comments archive. Sister script to
 #          understanding_submissions.py.
+# Usage:   python understanding_comments.py [input_path] [output_dir]
+#          With no arguments, falls back to the local sample file below — pass
+#          an explicit path to point at wherever the file actually lives on
+#          whichever machine (local, cluster login node, compute node) this runs on.
 
 import io
 import json
+import sys
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -16,8 +21,8 @@ import pandas as pd
 import zstandard as zstd
 
 ROOT       = Path(__file__).resolve().parents[4]
-INPUT      = ROOT / "Reddit/raw/comments/RC_2012-12.zst"   # change to point at other RC_*.zst files on the cluster
-OUTPUT_DIR = ROOT / "Reddit/output/ProcessReddit/comments"
+INPUT      = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "Reddit/raw/comments/RC_2012-12.zst"
+OUTPUT_DIR = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "Reddit/output/ProcessReddit/comments"
 
 TOP_N        = 50
 HEAD_N       = 5        # rows to preview raw
@@ -158,6 +163,13 @@ def profile(path):
 # ----------------------------------------------------------------
 # Run + report
 # ----------------------------------------------------------------
+if not INPUT.exists():
+    raise SystemExit(
+        f"Input file not found: {INPUT}\n"
+        f"Pass the correct path for this machine, e.g.:\n"
+        f"  python {Path(__file__).name} /path/to/RC_YYYY-MM.zst"
+    )
+
 file_size_mb = INPUT.stat().st_size / 1_048_576
 print(f"Input:      {INPUT}")
 print(f"File size:  {file_size_mb:,.2f} MB (compressed, .zst)")
