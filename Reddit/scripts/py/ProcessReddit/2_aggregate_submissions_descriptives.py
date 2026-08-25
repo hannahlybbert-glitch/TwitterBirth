@@ -93,8 +93,8 @@ yearly = (
     .round(2)
     .sort_index()
 )
-yearly.to_csv(OUTPUT_DIR / "yearly_summary.csv")
-print("Saved yearly trends to yearly_summary.csv")
+yearly.to_csv(OUTPUT_DIR / "yearly_files_summary.csv")
+print("Saved yearly trends to yearly_files_summary.csv")
 
 # ----------------------------------------------------------------
 # Schema evolution — which columns exist in which files, over time.
