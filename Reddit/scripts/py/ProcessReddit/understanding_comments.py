@@ -22,7 +22,7 @@ import zstandard as zstd
 
 ROOT       = Path(__file__).resolve().parents[4]
 INPUT      = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "Reddit/raw/comments/RC_2012-12.zst"
-OUTPUT_DIR = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "Reddit/output/ProcessReddit/comments"
+OUTPUT_DIR = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "Reddit/data/ProcessReddit/comments"
 
 TOP_N        = 50
 HEAD_N       = 5        # rows to preview raw

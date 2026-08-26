@@ -1,3 +1,0 @@
-year,n_files,n_rows,n_bad_lines,deleted_removed_rows,avg_pct_deleted_removed,avg_n_columns,avg_pct_is_self,avg_pct_over_18,total_file_size_mb
-2005,1,5356,0,441,8.23,59.0,0.0,0.0,0.42
-2012,1,2735743,0,805495,29.44,36.0,32.99,6.33,443.98

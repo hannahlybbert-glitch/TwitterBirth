@@ -16,7 +16,7 @@ import zstandard as zstd
 
 ROOT       = Path(__file__).resolve().parents[4]
 INPUT      = ROOT / "Reddit/raw/submissions/RS_2012-12.zst"   # change to point at other RS_*.zst files on the cluster
-OUTPUT_DIR = ROOT / "Reddit/output/ProcessReddit/submissions"
+OUTPUT_DIR = ROOT / "Reddit/data/ProcessReddit/submissions"
 
 TOP_N        = 50
 HEAD_N       = 5        # rows to preview raw

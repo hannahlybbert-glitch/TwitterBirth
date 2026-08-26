@@ -1,16 +1,16 @@
 # Author: Hannah Lybbert
-# Created: 2026-08-13
-# Updated: 2026-08-14
-# Purpose: Profile a single Reddit submissions .zst dump (rows, schema, subreddit/author
+# Created: 2026-08-26
+# Purpose: Profile a single Reddit comments .zst dump (rows, schema, subreddit/author
 #          activity) — the per-file "map" step of a cluster-wide descriptives run.
-#          Run with no arguments to loop over every RS_*.zst file in SUBMISSIONS_DIR,
+#          Run with no arguments to loop over every RC_*.zst file in COMMENTS_DIR,
 #          skipping files already profiled (resumable). Pass one file path to profile
-#          just that file — the shape used by process.sh's per-file loop.
-#          Pair with 2_aggregate_submissions_descriptives.py to combine results.
-# Paths:   SUBMISSIONS_DIR / OUTPUT_DIR default to the local repo layout, but can be
-#          overridden with the REDDIT_SUBMISSIONS_DIR / REDDIT_OUTPUT_DIR env vars —
-#          set these in process.sh, since the raw data lives at a different path
-#          structure on the cluster (no nested "Reddit/" folder there).
+#          just that file — the shape used by process_comments.sh's per-file loop.
+#          Pair with 2_aggregate_comments_descriptives.py to combine results.
+#          Sister script to 1_profile_submissions_file.py.
+# Paths:   COMMENTS_DIR / OUTPUT_DIR default to the local repo layout, but can be
+#          overridden with the REDDIT_COMMENTS_DIR / REDDIT_OUTPUT_DIR env vars —
+#          set these in process_comments.sh, since the raw data lives at a different
+#          path structure on the cluster (no nested "Reddit/" folder there).
 
 import io
 import json
@@ -24,13 +24,13 @@ from pathlib import Path
 import pandas as pd
 import zstandard as zstd
 
-ROOT            = Path(__file__).resolve().parents[4]
-SUBMISSIONS_DIR = Path(os.environ.get("REDDIT_SUBMISSIONS_DIR", ROOT / "Reddit/raw/submissions"))
-OUTPUT_BASE     = Path(os.environ.get("REDDIT_OUTPUT_DIR", ROOT / "Reddit/data/ProcessReddit"))
-OUTPUT_DIR      = OUTPUT_BASE / "submissions_descriptives/per_file"
+ROOT         = Path(__file__).resolve().parents[4]
+COMMENTS_DIR = Path(os.environ.get("REDDIT_COMMENTS_DIR", ROOT / "Reddit/raw/comments"))
+OUTPUT_BASE  = Path(os.environ.get("REDDIT_OUTPUT_DIR", ROOT / "Reddit/data/ProcessReddit"))
+OUTPUT_DIR   = OUTPUT_BASE / "comments_descriptives/per_file"
 
 MAX_WINDOW = 2 ** 31  # some dumps use zstd windows larger than the library default (2**27)
-FNAME_RE   = re.compile(r"RS_(\d{4})-(\d{2})\.zst$")
+FNAME_RE   = re.compile(r"RC_(\d{4})-(\d{2})\.zst$")
 
 
 # ----------------------------------------------------------------
@@ -48,6 +48,25 @@ def iter_records(path):
 
 
 # ----------------------------------------------------------------
+# created_utc comes through as int/float in some monthly dumps and as a
+# string in others (confirmed on RC_2012-12) — coerce instead of relying
+# on isinstance(created, (int, float)), which silently drops every row's
+# timestamp on the string-typed months.
+# ----------------------------------------------------------------
+def to_epoch(v):
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return int(v)
+    if isinstance(v, str):
+        try:
+            return int(v)
+        except ValueError:
+            return None
+    return None
+
+
+# ----------------------------------------------------------------
 # Single pass over one file, accumulating everything the aggregator
 # will need. Authors are tracked per-subreddit as sets so the
 # aggregator can later union them exactly across files.
@@ -62,16 +81,15 @@ def profile_file(path):
     all_columns = set()
     null_counts = Counter()
 
-    subreddit_posts   = Counter()          # subreddit -> total post count (incl. deleted/removed authors)
-    subreddit_authors = defaultdict(set)   # subreddit -> set of real authors (excl. deleted/removed)
-    authors_total      = set()
+    subreddit_comments = Counter()          # subreddit -> total comment count (incl. deleted/removed authors)
+    subreddit_authors   = defaultdict(set)  # subreddit -> set of real authors (excl. deleted/removed)
+    authors_total        = set()
     deleted_removed_rows = 0
 
     created_min = created_max = None
     score_n, score_sum, score_min, score_max = 0, 0, None, None
-    comments_n, comments_sum, comments_min, comments_max = 0, 0, None, None
-    is_self_n, is_self_true = 0, 0
-    over18_n, over18_true = 0, 0
+    body_n, body_len_sum, body_len_min, body_len_max = 0, 0, None, None
+    controversial_n, controversial_true = 0, 0
 
     start = time.time()
     for line in iter_records(path):
@@ -89,7 +107,7 @@ def profile_file(path):
 
         sub = rec.get("subreddit")
         if sub:
-            subreddit_posts[sub] += 1
+            subreddit_comments[sub] += 1
             author = rec.get("author")
             if author in ("[deleted]", "[removed]"):
                 deleted_removed_rows += 1
@@ -97,34 +115,30 @@ def profile_file(path):
                 subreddit_authors[sub].add(author)
                 authors_total.add(author)
 
-        created = rec.get("created_utc")
-        if isinstance(created, (int, float)):
+        created = to_epoch(rec.get("created_utc"))
+        if created is not None:
             created_min = created if created_min is None else min(created_min, created)
             created_max = created if created_max is None else max(created_max, created)
 
         score = rec.get("score")
-        if isinstance(score, (int, float)):
+        if isinstance(score, (int, float)) and not isinstance(score, bool):
             score_n += 1
             score_sum += score
             score_min = score if score_min is None else min(score_min, score)
             score_max = score if score_max is None else max(score_max, score)
 
-        ncom = rec.get("num_comments")
-        if isinstance(ncom, (int, float)):
-            comments_n += 1
-            comments_sum += ncom
-            comments_min = ncom if comments_min is None else min(comments_min, ncom)
-            comments_max = ncom if comments_max is None else max(comments_max, ncom)
+        body = rec.get("body")
+        if isinstance(body, str):
+            blen = len(body)
+            body_n += 1
+            body_len_sum += blen
+            body_len_min = blen if body_len_min is None else min(body_len_min, blen)
+            body_len_max = blen if body_len_max is None else max(body_len_max, blen)
 
-        is_self = rec.get("is_self")
-        if isinstance(is_self, bool):
-            is_self_n += 1
-            is_self_true += is_self
-
-        over18 = rec.get("over_18")
-        if isinstance(over18, bool):
-            over18_n += 1
-            over18_true += over18
+        controversiality = rec.get("controversiality")
+        if isinstance(controversiality, (int, bool)):
+            controversial_n += 1
+            controversial_true += bool(controversiality)
 
     elapsed = time.time() - start
 
@@ -142,30 +156,29 @@ def profile_file(path):
         "pct_null_by_column":  {c: round(100 * null_counts[c] / n_rows, 2) for c in sorted(all_columns)} if n_rows else {},
         "date_min":            pd.to_datetime(created_min, unit="s").isoformat() if created_min is not None else None,
         "date_max":            pd.to_datetime(created_max, unit="s").isoformat() if created_max is not None else None,
-        "n_unique_subreddits": len(subreddit_posts),
+        "n_unique_subreddits": len(subreddit_comments),
         "n_unique_authors":    len(authors_total),
         "deleted_removed_rows": deleted_removed_rows,
         "pct_deleted_removed": round(100 * deleted_removed_rows / n_rows, 2) if n_rows else None,
         "score_mean":          round(score_sum / score_n, 2) if score_n else None,
         "score_min":           score_min,
         "score_max":           score_max,
-        "num_comments_mean":   round(comments_sum / comments_n, 2) if comments_n else None,
-        "num_comments_min":    comments_min,
-        "num_comments_max":    comments_max,
-        "pct_is_self":         round(100 * is_self_true / is_self_n, 2) if is_self_n else None,
-        "pct_over_18":         round(100 * over18_true / over18_n, 2) if over18_n else None,
+        "body_len_mean":       round(body_len_sum / body_n, 1) if body_n else None,
+        "body_len_min":        body_len_min,
+        "body_len_max":        body_len_max,
+        "pct_controversial":   round(100 * controversial_true / controversial_n, 2) if controversial_n else None,
     }
 
     subreddit_stats = pd.DataFrame(
         [
             {
                 "subreddit": sub,
-                "n_posts": subreddit_posts[sub],
+                "n_comments": subreddit_comments[sub],
                 "n_unique_authors": len(subreddit_authors.get(sub, ())),
             }
-            for sub in subreddit_posts
+            for sub in subreddit_comments
         ]
-    ).sort_values("n_posts", ascending=False).reset_index(drop=True)
+    ).sort_values("n_comments", ascending=False).reset_index(drop=True)
 
     subreddit_author_pairs = pd.DataFrame(
         [(sub, author) for sub, authors in subreddit_authors.items() for author in authors],
@@ -233,8 +246,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         run_one(Path(sys.argv[1]))
     else:
-        files = sorted(SUBMISSIONS_DIR.glob("RS_*.zst"))
-        print(f"Found {len(files)} submissions files in {SUBMISSIONS_DIR}")
+        files = sorted(COMMENTS_DIR.glob("RC_*.zst"))
+        print(f"Found {len(files)} comments files in {COMMENTS_DIR}")
         for path in files:
             if already_done(path.stem, OUTPUT_DIR):
                 print(f"[{path.stem}] already profiled, skipping")
