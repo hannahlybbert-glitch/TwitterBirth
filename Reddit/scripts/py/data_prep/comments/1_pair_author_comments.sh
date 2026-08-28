@@ -1,17 +1,17 @@
 #!/bin/bash
 # Pull treatment authors' full comment history — cluster runner (Slurm array).
 # Run from the reddit project root:
-#     sbatch scripts/py/data_prep/pair_authors_comments.sh
+#     sbatch scripts/py/data_prep/comments/1_pair_author_comments.sh
 #
 # One array task per monthly RC_*.zst file: each task streams its file once and
 # writes a shard to
-#     Reddit/data/intermediate/comments/treatment_author_comments/RC_YYYY-MM.csv
+#     Reddit/data/intermediate/comments/treatment_author_comments/treatment_RC_YYYY-MM.parquet
 # Shards are resumable (a task whose shard already exists is a no-op), so a
 # partly-finished array can be resubmitted as-is.
 #
 # After the array finishes, build the single combined deliverable with:
-#     sbatch --dependency=afterok:<this_array_job_id> scripts/py/data_prep/pair_authors_comments_combine.sh
-# (or just run `python scripts/py/data_prep/pair_authors_comments.py --combine-only`
+#     sbatch --dependency=afterok:<this_array_job_id> scripts/py/data_prep/comments/2_aggregate_author_comments.sh
+# (or just run `python scripts/py/data_prep/comments/pair_authors_comments.py --combine-only`
 #  on a login node once the shards are all there — it's cheap.)
 #
 # Prereq: Reddit/data/final/treatment_authors.csv must exist (build/authors.py).
@@ -58,7 +58,7 @@ echo "Task $SLURM_ARRAY_TASK_ID -> $(basename "$F")"
 echo "Started at: $(date)"
 echo "============================================"
 
-"$PYTHON" scripts/py/data_prep/pair_authors_comments.py "$F"
+"$PYTHON" scripts/py/data_prep/comments/pair_authors_comments.py "$F"
 
 echo ""
 echo "Task $SLURM_ARRAY_TASK_ID done at: $(date)"

@@ -36,3 +36,5 @@ We want them to be very informative. If the strategy used logs (log) or fixed ef
 4. Use Globals/variables as often as possible
 
 When we will reuse similar code for lots of tasks, this great way to simplify work. When it makes sense but as often as possible to simplify work that could be generalized to follow the same variables
+
+5. For all scripts in /Reddit/ use addaptive paths so we can run on the cluster

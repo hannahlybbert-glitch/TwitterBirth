@@ -1,12 +1,12 @@
 #!/bin/bash
 # Combine step for pair_authors_comments — concatenates the per-month shards in
 # Reddit/data/intermediate/comments/treatment_author_comments/ into the single
-# deliverable Reddit/data/intermediate/comments/treatment_author_comments.csv
+# deliverable Reddit/data/intermediate/comments/treatment_author_comments.parquet
 #
 # Run from the reddit project root, after the array job finishes:
-#     sbatch --dependency=afterok:<array_job_id> scripts/py/data_prep/pair_authors_comments_combine.sh
+#     sbatch --dependency=afterok:<array_job_id> scripts/py/data_prep/comments/2_aggregate_author_comments.sh
 # This is light enough to just run on a login node instead:
-#     python scripts/py/data_prep/pair_authors_comments.py --combine-only
+#     python scripts/py/data_prep/comments/pair_authors_comments.py --combine-only
 
 #SBATCH --partition=standard
 #SBATCH --account=ksrini0
@@ -25,5 +25,5 @@ export REDDIT_INTERMEDIATE_DIR=/nfs/turbo/si-ksrini/reddit/data/intermediate
 mkdir -p logs
 
 echo "Combining shards at: $(date)"
-"$PYTHON" scripts/py/data_prep/pair_authors_comments.py --combine-only
+"$PYTHON" scripts/py/data_prep/comments/pair_authors_comments.py --combine-only
 echo "Done at: $(date)"
