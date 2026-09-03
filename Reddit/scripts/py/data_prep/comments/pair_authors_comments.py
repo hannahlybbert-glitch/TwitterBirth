@@ -324,7 +324,7 @@ def main():
         raise SystemExit(
             f"No RC_*.zst files in {COMMENTS_DIR}\n"
             f"Set REDDIT_COMMENTS_DIR to the comments dir on this machine "
-            f"(cluster: /nfs/turbo/si-ksrini/reddit/raw/comments)."
+            f"(cluster: /nfs/turbo/si-ksrini/Reddit/raw/comments)."
         )
     print(f"Found {len(files)} comment files in {COMMENTS_DIR}")
     for p in files:

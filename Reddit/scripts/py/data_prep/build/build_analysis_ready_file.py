@@ -77,12 +77,14 @@ df["post"] = (df["days_from_birth"] >= 0).astype(int)
 # full_18_pre:  1 if author has at least 18 months of pre-birth data
 # one_year_pre: 1 if author has at least 12 months of pre-birth data
 # full_18_post: 1 if author has at least 18 months of post-birth data
+# full_24_post: 1 if author has at least 24 months of post-birth data
 # ----------------------------------------------------------------
 author_min = df.groupby("author")["months_from_birth"].min()
 author_max = df.groupby("author")["months_from_birth"].max()
 df["full_18_pre"]  = df["author"].map(author_min <= -18).astype(int)
 df["one_year_pre"] = df["author"].map(author_min <= -12).astype(int)
 df["full_18_post"] = df["author"].map(author_max >= 18).astype(int)
+df["full_24_post"] = df["author"].map(author_max >= 24).astype(int)
 
 # ----------------------------------------------------------------
 # female: author-level gender flag derived from birth post
@@ -107,12 +109,13 @@ df = df.sort_values(["author", "created_utc"]).reset_index(drop=True)
 df.to_csv(OUTPUT, index=False)
 
 authors       = df.groupby("author")["female"].first()
-author_flags  = df.groupby("author")[["full_18_pre", "full_18_post", "one_year_pre"]].first()
+author_flags  = df.groupby("author")[["full_18_pre", "full_18_post", "full_24_post", "one_year_pre"]].first()
 print(f"\nDone. Saved {len(df):,} rows to {OUTPUT}")
 print(f"  Post-birth posts  (post == 1): {(df['post'] == 1).sum():,}")
 print(f"  Pre-birth posts   (post == 0): {(df['post'] == 0).sum():,}")
 print(f"  Authors full_18_pre:           {author_flags['full_18_pre'].sum():,}")
 print(f"  Authors full_18_post:          {author_flags['full_18_post'].sum():,}")
+print(f"  Authors full_24_post:          {author_flags['full_24_post'].sum():,}")
 print(f"  Authors one_year_pre:          {author_flags['one_year_pre'].sum():,}")
 print(f"  Female authors    (female == 1):   {(authors == 1).sum():,}")
 print(f"  Male authors      (female == 0):   {(authors == 0).sum():,}")

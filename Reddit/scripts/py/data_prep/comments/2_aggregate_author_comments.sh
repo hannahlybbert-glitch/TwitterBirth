@@ -20,7 +20,11 @@
 set -euo pipefail
 
 PYTHON=/home/hlybbert/.conda/envs/TwitterBirth/bin/python3
-export REDDIT_INTERMEDIATE_DIR=/nfs/turbo/si-ksrini/reddit/data/intermediate
+# combine() still loads treatment_authors.csv (for the earliest-comment summary),
+# so set it here too — matches 1_pair_author_comments.sh and doesn't rely on the
+# .py's repo-relative fallback.
+export TREATMENT_AUTHORS_CSV=/nfs/turbo/si-ksrini/Reddit/data/final/treatment_authors.csv
+export REDDIT_INTERMEDIATE_DIR=/nfs/turbo/si-ksrini/Reddit/data/intermediate
 
 mkdir -p logs
 

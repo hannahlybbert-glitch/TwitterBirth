@@ -38,9 +38,9 @@ PYTHON=/home/hlybbert/.conda/envs/TwitterBirth/bin/python3
 
 # Cluster data layout (no nested "Reddit/" folder here). Read by the .py via
 # os.environ.get() with repo-relative fallbacks.
-export REDDIT_COMMENTS_DIR=/nfs/turbo/si-ksrini/reddit/raw/comments
-export TREATMENT_AUTHORS_CSV=/nfs/turbo/si-ksrini/reddit/data/final/treatment_authors.csv
-export REDDIT_INTERMEDIATE_DIR=/nfs/turbo/si-ksrini/reddit/data/intermediate
+export REDDIT_COMMENTS_DIR=/nfs/turbo/si-ksrini/Reddit/raw/comments
+export TREATMENT_AUTHORS_CSV=/nfs/turbo/si-ksrini/Reddit/data/final/treatment_authors.csv
+export REDDIT_INTERMEDIATE_DIR=/nfs/turbo/si-ksrini/Reddit/data/intermediate
 
 mkdir -p logs
 

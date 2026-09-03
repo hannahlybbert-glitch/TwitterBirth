@@ -5,10 +5,10 @@
 import pandas as pd
 from pathlib import Path
 
-ROOT               = Path(__file__).resolve().parents[5]
+ROOT               = Path(__file__).resolve().parents[4]
 INPUT_PATH         = ROOT / "Reddit/data/final/births_and_posts_FULL.csv"
 BIRTH_SUBS_PATH    = ROOT / "Reddit/data/descriptives/birth_subreddits.csv"
-OUTPUT_PATH        = ROOT / "Reddit/data/ControlGroup/1_subreddits/other_treatment_subreddits.csv"
+OUTPUT_PATH        = ROOT / "Reddit/ControlGroup/data/1_subreddits/other_treatment_subreddits.csv"
 TOP_N              = 20
 
 # ----------------------------------------------------------------

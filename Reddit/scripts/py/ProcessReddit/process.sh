@@ -43,6 +43,11 @@ shopt -s nullglob
 # was actually installed, just in the environment that didn't end up running.
 PYTHON=/home/hlybbert/.conda/envs/TwitterBirth/bin/python3
 
+# Slurm sends stdout to a file, where Python block-buffers its prints and the log
+# looks frozen for long stretches. Force line-buffered output so each file's
+# progress shows up as it happens.
+export PYTHONUNBUFFERED=1
+
 # ============================================================
 # MODE toggle — "submissions" or "comments". Remember to also flip the
 # matching #SBATCH resource block above.
@@ -54,7 +59,7 @@ MODE=comments
 # a repo-relative fallback for local runs. Shared by both modes; each mode's
 # scripts write to their own submissions_descriptives/ or comments_descriptives/
 # subfolder under here. Update this if the path changes.
-export REDDIT_OUTPUT_DIR=/nfs/turbo/si-ksrini/reddit/data/ProcessReddit
+export REDDIT_OUTPUT_DIR=/nfs/turbo/si-ksrini/Reddit/data/ProcessReddit
 
 echo "============================================"
 echo "REDDIT DESCRIPTIVES PIPELINE ($MODE)"
@@ -62,16 +67,25 @@ echo "Started at: $(date)"
 echo "============================================"
 
 if [ "$MODE" = "submissions" ]; then
-    export REDDIT_SUBMISSIONS_DIR=/nfs/turbo/si-ksrini/reddit/raw/submissions
+    export REDDIT_SUBMISSIONS_DIR=/nfs/turbo/si-ksrini/Reddit/raw/submissions
 
     echo ""
     echo "Step 1: Profiling submissions files in $REDDIT_SUBMISSIONS_DIR"
-    echo "(resumable — already-profiled files are skipped)"
+    echo "(resumable — a file that already has all three per-file outputs is skipped,"
+    echo " so a restart picks up at the first unprofiled month)"
+    per_file_dir="$REDDIT_OUTPUT_DIR/submissions_descriptives/per_file"
     files=("$REDDIT_SUBMISSIONS_DIR"/RS_*.zst)
     echo "Found ${#files[@]} files"
     for f in "${files[@]}"; do
+        stem=$(basename "$f" .zst)
+        if [ -f "$per_file_dir/${stem}__summary.json" ] \
+           && [ -f "$per_file_dir/${stem}__subreddit_stats.csv" ] \
+           && [ -f "$per_file_dir/${stem}__subreddit_authors.parquet" ]; then
+            echo "  -> ${stem}.zst  already profiled, skipping"
+            continue
+        fi
         echo ""
-        echo "  -> $(basename "$f")"
+        echo "  -> ${stem}.zst  ($(date '+%H:%M:%S'))"
         "$PYTHON" scripts/py/ProcessReddit/1_profile_submissions_file.py "$f"
     done
 
@@ -84,16 +98,25 @@ if [ "$MODE" = "submissions" ]; then
     "$PYTHON" scripts/py/ProcessReddit/3_monthly_and_yearly_submissions_rollups.py
 
 elif [ "$MODE" = "comments" ]; then
-    export REDDIT_COMMENTS_DIR=/nfs/turbo/si-ksrini/reddit/raw/comments
+    export REDDIT_COMMENTS_DIR=/nfs/turbo/si-ksrini/Reddit/raw/comments
 
     echo ""
     echo "Step 1: Profiling comments files in $REDDIT_COMMENTS_DIR"
-    echo "(resumable — already-profiled files are skipped)"
+    echo "(resumable — a file that already has all three per-file outputs is skipped,"
+    echo " so a restart picks up at the first unprofiled month)"
+    per_file_dir="$REDDIT_OUTPUT_DIR/comments_descriptives/per_file"
     files=("$REDDIT_COMMENTS_DIR"/RC_*.zst)
     echo "Found ${#files[@]} files"
     for f in "${files[@]}"; do
+        stem=$(basename "$f" .zst)
+        if [ -f "$per_file_dir/${stem}__summary.json" ] \
+           && [ -f "$per_file_dir/${stem}__subreddit_stats.csv" ] \
+           && [ -f "$per_file_dir/${stem}__subreddit_authors.parquet" ]; then
+            echo "  -> ${stem}.zst  already profiled, skipping"
+            continue
+        fi
         echo ""
-        echo "  -> $(basename "$f")"
+        echo "  -> ${stem}.zst  ($(date '+%H:%M:%S'))"
         "$PYTHON" scripts/py/ProcessReddit/1_profile_comments_file.py "$f"
     done
 
