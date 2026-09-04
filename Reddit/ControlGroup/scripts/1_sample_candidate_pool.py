@@ -50,11 +50,7 @@ Final dataframe will be 3 columns: author, id, created_utc
 #
 # Sampling is per-AUTHOR uniform, not per-post: within a month we collapse to distinct
 # eligible authors, keep one uniformly-random submission each (reservoir sampling, k=1),
-# then draw that month's quota of authors without replacement. Months are processed
-# independently (embarrassingly parallel). The combine step concatenates the per-month
-# shards and drops the handful of authors drawn in more than one month, so the final
-# pool lands slightly under 100,019 -- expected: this is a deliberately large starting
-# pool that later steps (18-month pre-history, matching) whittle down.
+# then draw that month's quota of authors without replacement. Months are processed independently. 
 #
 # Excluded from the pool: rows with no author / no id / no parseable created_utc, author
 # in {[deleted], [removed], [unknown], AutoModerator}, and any author in
@@ -64,7 +60,7 @@ Final dataframe will be 3 columns: author, id, created_utc
 #          Reddit/data/final/treatment_authors.csv            (author column -> exclude)
 #          Reddit/data/descriptives/date_birth_dist_full.csv  (year_month, share_of_birth_posts)
 #
-# Output:  Reddit/ControlGroup/data/1_candidate_pool_shards/shard_RS_YYYY-MM.parquet
+# Output:  Reddit/ControlGroup/data/1_candidate_pool_chunks/chunk_RS_YYYY-MM.parquet
 #            per-month, resumable; columns: author, id, created_utc, seed_month, subreddit
 #          Reddit/ControlGroup/data/1_candidate_pool.parquet
 #            the deliverable: one row per candidate author, same columns
@@ -72,7 +68,7 @@ Final dataframe will be 3 columns: author, id, created_utc
 # Usage (from this file's directory, Reddit/ControlGroup/scripts/):
 #   python 1_sample_candidate_pool.py                 # loop every required month, then combine
 #   python 1_sample_candidate_pool.py RS_2015-03.zst  # one month only (Slurm array shape); no combine
-#   python 1_sample_candidate_pool.py --combine-only  # rebuild 1_candidate_pool.parquet from shards
+#   python 1_sample_candidate_pool.py --combine-only  # rebuild 1_candidate_pool.parquet from chunks
 #   python 1_sample_candidate_pool.py --allow-missing-months   # local testing with a partial archive
 #
 # Paths: the raw dumps sit at a different layout on the cluster, so the submissions dir /
@@ -102,7 +98,7 @@ TREATMENT_CSV   = Path(os.environ.get("TREATMENT_AUTHORS_CSV", ROOT / "Reddit/da
 BIRTH_DIST_CSV  = Path(os.environ.get("BIRTH_DATE_DIST_CSV", ROOT / "Reddit/data/descriptives/date_birth_dist_full.csv"))
 DATA_DIR        = Path(os.environ.get("CONTROLGROUP_DATA_DIR", ROOT / "Reddit/ControlGroup/data"))
 
-SHARD_DIR     = DATA_DIR / "1_candidate_pool_shards"
+CHUNK_DIR     = DATA_DIR / "1_candidate_pool_chunks"
 COMBINED_PATH = DATA_DIR / "1_candidate_pool.parquet"
 
 DEFAULT_SEED = 20260902
@@ -111,7 +107,7 @@ MIN_QUOTA    = 10          # months whose scaled share rounds below this are bum
 
 MAX_WINDOW = 2 ** 31       # some dumps use zstd windows > the library default (2**27)
 FNAME_RE   = re.compile(r"RS_(\d{4})-(\d{2})\.zst$")
-SHARD_RE   = re.compile(r"shard_RS_(\d{4}-\d{2})\.parquet$")
+CHUNK_RE   = re.compile(r"chunk_RS_(\d{4}-\d{2})\.parquet$")
 
 # Authors that are never real people. [deleted]/[removed]/[unknown] are Reddit's
 # own placeholders; AutoModerator is the site-wide bot. Kept deliberately small.
@@ -261,8 +257,8 @@ def save_atomic(df, path):
     tmp.replace(path)
 
 
-def shard_path(seed_month):
-    return SHARD_DIR / f"shard_RS_{seed_month}.parquet"
+def chunk_path(seed_month):
+    return CHUNK_DIR / f"chunk_RS_{seed_month}.parquet"
 
 
 def month_rng(seed, seed_month):
@@ -279,29 +275,29 @@ def run_one(path, quota_table, treatment, seed):
         print(f"[{seed_month}] not in the quota table ({BIRTH_DIST_CSV.name}); skipping")
         return
     df = process_file(path, seed_month, quota_table[seed_month], treatment, month_rng(seed, seed_month))
-    save_atomic(df, shard_path(seed_month))
+    save_atomic(df, chunk_path(seed_month))
 
 
 # ----------------------------------------------------------------
-# Concatenate the per-month shards, drop authors drawn in more than one month
+# Concatenate the per-month chunks, drop authors drawn in more than one month
 # (keep a random one, reproducibly via a seeded shuffle), and write the
 # deliverable. Reports realized vs. target counts per month.
 # ----------------------------------------------------------------
 def combine(quota_table, seed):
-    shards = sorted(SHARD_DIR.glob("shard_RS_*.parquet"))
-    if not shards:
-        print(f"No shards in {SHARD_DIR}; nothing to combine.")
+    chunks = sorted(CHUNK_DIR.glob("chunk_RS_*.parquet"))
+    if not chunks:
+        print(f"No chunks in {CHUNK_DIR}; nothing to combine.")
         return
 
-    have = {SHARD_RE.search(s.name).group(1) for s in shards}
+    have = {CHUNK_RE.search(s.name).group(1) for s in chunks}
     missing = [ym for ym in quota_table if ym not in have]
     if missing:
         print(
-            f"WARNING: {len(missing)} required month(s) have no shard yet; the pool will be "
+            f"WARNING: {len(missing)} required month(s) have no chunk yet; the pool will be "
             f"short by their quotas. e.g. {missing[:8]}{'...' if len(missing) > 8 else ''}"
         )
 
-    combined = pd.concat([pd.read_parquet(s) for s in shards], ignore_index=True)
+    combined = pd.concat([pd.read_parquet(s) for s in chunks], ignore_index=True)
     n_before = len(combined)
     combined = (
         combined.sample(frac=1, random_state=seed)          # shuffle so the kept dupe is random
@@ -312,7 +308,7 @@ def combine(quota_table, seed):
     n_after = len(combined)
     save_atomic(combined, COMBINED_PATH)
 
-    print(f"\nCombined {len(shards)} shard(s) -> {COMBINED_PATH}")
+    print(f"\nCombined {len(chunks)} chunk(s) -> {COMBINED_PATH}")
     print(
         f"  {n_before:,} rows -> {n_after:,} unique candidate authors "
         f"({n_before - n_after:,} cross-month duplicates dropped)"
@@ -337,7 +333,7 @@ def combine(quota_table, seed):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("file", nargs="?", help="single RS_YYYY-MM.zst to process (name or path); omit to loop all")
-    ap.add_argument("--combine-only", action="store_true", help="rebuild 1_candidate_pool.parquet from existing shards and exit")
+    ap.add_argument("--combine-only", action="store_true", help="rebuild 1_candidate_pool.parquet from existing chunks and exit")
     ap.add_argument("--no-combine", action="store_true", help="process all months but skip the final combine")
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED, help=f"RNG seed (default {DEFAULT_SEED})")
     ap.add_argument("--allow-missing-months", action="store_true", help="don't error when a required month's .zst is absent (local testing)")
@@ -377,8 +373,8 @@ def main():
 
     print(f"Processing {len(present)} month(s) from {SUBMISSIONS_DIR}")
     for ym in present:
-        if shard_path(ym).exists():
-            print(f"[{ym}] shard exists, skipping")
+        if chunk_path(ym).exists():
+            print(f"[{ym}] chunk exists, skipping")
             continue
         run_one(SUBMISSIONS_DIR / f"RS_{ym}.zst", quota_table, treatment, args.seed)
 
