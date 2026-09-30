@@ -58,7 +58,13 @@ echo "Task $SLURM_ARRAY_TASK_ID -> $(basename "$F")"
 echo "Started at: $(date)"
 echo "============================================"
 
-"$PYTHON" scripts/py/data_prep/comments/pair_authors_comments.py "$F"
+# The .py doesn't self-skip in single-file mode, so check for the shard here.
+SHARD="$REDDIT_INTERMEDIATE_DIR/comments/treatment_author_comments/treatment_$(basename "$F" .zst).parquet"
+if [ -f "$SHARD" ]; then
+    echo "$(basename "$SHARD") already exists -- skipping."
+else
+    "$PYTHON" scripts/py/data_prep/comments/pair_authors_comments.py "$F"
+fi
 
 echo ""
 echo "Task $SLURM_ARRAY_TASK_ID done at: $(date)"

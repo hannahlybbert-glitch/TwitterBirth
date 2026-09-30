@@ -47,8 +47,8 @@ print(f"Drawing days_from from {len(days_from_dist):,} real birth posts (excludi
 rng = np.random.default_rng(RANDOM_SEED)
 
 # Cap draw window so date_birth_post is before BIRTH_CUTOFF,
-# ensuring date_birth is at least 18 months before end of sample (Dec 2024)
-BIRTH_CUTOFF = pd.Timestamp("2023-07-01")
+# ensuring date_birth is at least 18 months before end of sample (Dec 2025)
+BIRTH_CUTOFF = pd.Timestamp("2024-07-01")
 
 # ----------------------------------------------------------------
 # METHOD 1 (old): draw date_birth_post as a random continuous date

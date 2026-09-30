@@ -94,6 +94,20 @@ out_date_csv = DATA_DIR / "date_birth_dist_full.csv"
 month_dist.to_csv(out_date_csv, index=False)
 print(f"Saved: {out_date_csv}")
 
+# CSV: days_from distribution (days between birth and birth post; one row per value,
+# share of birth posts excluding -999). The control-group pipeline draws placebo
+# days_from values from this (ControlGroup/scripts/3_build_monthly_activity_matrix.py).
+days_dist = (
+    days.value_counts()
+    .sort_index()
+    .rename_axis("days_from")
+    .reset_index(name="n_birth_posts")
+)
+days_dist["share"] = days_dist["n_birth_posts"] / days_dist["n_birth_posts"].sum()
+out_days_csv = DATA_DIR / "days_from_dist_full.csv"
+days_dist.to_csv(out_days_csv, index=False)
+print(f"Saved: {out_days_csv} ({len(days_dist):,} distinct values, {n_999:,} birth posts with -999 excluded)")
+
 # # ----------------------------------------------------------------
 # # Figure 3: days_from distribution
 # # (days between birth post and actual birth date)

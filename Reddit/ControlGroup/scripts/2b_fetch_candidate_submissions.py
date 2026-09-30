@@ -1,4 +1,329 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-02
-# Purpose: For each candidate user from ControlGroup/data/1_candidate_pool.parquet, fetch their submissions from the raw submissions data
-# Output: One file per author with all of their submissions saved to Reddit/ControlGroup/data/per_author_candidates/{author name}_submissions.parquet
+# Updated: 2026-09-17
+# Purpose: For each candidate author in ControlGroup/data/1_candidate_pool.parquet, pull
+#          every submission they ever made from the raw submissions archive.
+# Output:  One file per author: Reddit/ControlGroup/data/per_author_candidates/{author}_submissions.parquet
+#
+# ======================================================================================
+# DESIGN
+# ======================================================================================
+# Candidate authors only -- treatment authors' submissions already exist in
+# Reddit/data/final/births_and_posts_FULL.csv. See scripts/py/build_treatment_volume_matrix.py,
+# which builds the treatment-side volume matrix straight from that (already-pulled) data
+# instead of re-scanning the archive here. Mirror of 2a_fetch_candidate_comments.py --
+# see that file for the full design rationale; only the record source and a couple of
+# submission-only fields differ.
+#
+# Two-stage, hash-partitioned pipeline (same idea as an external merge sort), so every
+# stage's memory stays bounded despite pulling FULL lifetime history for 100k authors:
+#
+#   Stage 1 (fetch, one Slurm array task per RS_YYYY-MM.zst -- ~154+ way parallel):
+#     Single streaming pass over the month (same shape as 1_sample_candidate_pool.py).
+#     Keep only submissions by a candidate author, compute months_from_birth relative
+#     to that author's SEED post (from 1_candidate_pool.parquet, not a real birth), then
+#     split the month's matched rows into N_BUCKETS files by hash(author).
+#       Reddit/ControlGroup/data/2b_candidate_submission_chunks/chunk_RS_YYYY-MM_bNNN.parquet
+#
+#   Stage 2 (split, one Slurm array task per bucket -- N_BUCKETS-way parallel):
+#     For one bucket, concatenate that bucket's chunks across every month (~1/N_BUCKETS
+#     of the total data), group by author, and write the per-author deliverables.
+#       Reddit/ControlGroup/data/per_author_candidates/{author}_submissions.parquet
+#
+# Usage (from this file's directory, Reddit/ControlGroup/scripts/):
+#   python 2b_fetch_candidate_submissions.py                  # loop every month, then split all buckets
+#   python 2b_fetch_candidate_submissions.py RS_2015-03.zst   # one month only (Slurm array shape); no split
+#   python 2b_fetch_candidate_submissions.py --split-only     # (re)build per-author files from existing chunks
+#   python 2b_fetch_candidate_submissions.py --split-only --bucket 7   # one bucket only (Slurm array shape)
+#   python 2b_fetch_candidate_submissions.py --no-split       # process all months, skip the split stage
+#
+# Paths: raw dumps sit at a different layout on the cluster, so these can be overridden:
+#   REDDIT_SUBMISSIONS_DIR  dir holding RS_YYYY-MM.zst        (default: repo Reddit/raw/submissions)
+#   CONTROLGROUP_DATA_DIR   ControlGroup data dir (candidate pool lives here, chunks/output written here)
+#                           (default: repo Reddit/ControlGroup/data)
+
+import argparse
+import io
+import json
+import os
+import re
+import time
+import zlib
+from pathlib import Path
+
+import pandas as pd
+import zstandard as zstd
+
+ROOT = Path(__file__).resolve().parents[3]
+
+SUBMISSIONS_DIR = Path(os.environ.get("REDDIT_SUBMISSIONS_DIR", ROOT / "Reddit/raw/submissions"))
+DATA_DIR        = Path(os.environ.get("CONTROLGROUP_DATA_DIR", ROOT / "Reddit/ControlGroup/data"))
+
+CANDIDATE_POOL_PARQUET = DATA_DIR / "1_candidate_pool.parquet"
+CHUNK_DIR              = DATA_DIR / "2b_candidate_submission_chunks"
+PER_AUTHOR_DIR         = DATA_DIR / "per_author_candidates"
+
+MAX_WINDOW = 2 ** 31          # some dumps use zstd windows > the library default (2**27)
+FNAME_RE   = re.compile(r"RS_(\d{4}-\d{2})\.zst$")
+
+N_BUCKETS = 64   # ~1,500 candidate authors/bucket at 100k -- keeps stage 2 memory bounded
+
+# Lean schema, matching 2a and the treatment side (extract_treatment_volume.py): no
+# title/selftext/url/permalink (text analysis unlikely; this is the only pass over the
+# raw archive for candidates, so dropped fields are gone unless re-fetched later), and
+# subreddit tracked by NAME only (no subreddit_id -- not available in the treatment-side
+# source, births_and_posts_FULL.csv). num_comments/score are cheap engagement signals
+# kept for possible later use.
+OUT_COLUMNS    = ["author", "id", "created_utc", "months_from_birth", "subreddit", "score", "num_comments"]
+INT_COLUMNS    = ["created_utc", "months_from_birth", "score", "num_comments"]
+STRING_COLUMNS = [c for c in OUT_COLUMNS if c not in INT_COLUMNS]
+
+
+# ----------------------------------------------------------------
+# Stream-decode a .zst NDJSON dump one record at a time (never hold the whole
+# multi-GB month in memory). Same shape as 1_sample_candidate_pool.py.
+# ----------------------------------------------------------------
+def iter_records(path):
+    with open(path, "rb") as fh:
+        dctx = zstd.ZstdDecompressor(max_window_size=MAX_WINDOW)
+        with dctx.stream_reader(fh, read_across_frames=True) as reader:
+            text = io.TextIOWrapper(reader, encoding="utf-8", errors="replace")
+            for line in text:
+                line = line.strip()
+                if line:
+                    yield line
+
+
+# ----------------------------------------------------------------
+# created_utc is int/float in some monthly dumps and a string in others
+# (confirmed on the 2012-12 dumps). Coerce instead of isinstance-checking.
+# ----------------------------------------------------------------
+def to_epoch(v):
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return int(v)
+    if isinstance(v, str):
+        try:
+            return int(v)
+        except ValueError:
+            return None
+    return None
+
+
+def bucket_of(author):
+    return zlib.crc32(author.encode("utf-8")) % N_BUCKETS
+
+
+# ----------------------------------------------------------------
+# Load candidate authors -> seed created_utc (their step-1 seed submission epoch).
+# months_from_birth is computed relative to this seed date, not a real birth -- the
+# candidate-side anchor, matching 2a_fetch_candidate_comments.py.
+# ----------------------------------------------------------------
+def load_candidates():
+    if not CANDIDATE_POOL_PARQUET.exists():
+        raise SystemExit(
+            f"Candidate pool not found: {CANDIDATE_POOL_PARQUET}\n"
+            f"Run 1_sample_candidate_pool.py first."
+        )
+    df = pd.read_parquet(CANDIDATE_POOL_PARQUET, columns=["author", "created_utc"])
+    seed_epoch = dict(zip(df["author"], df["created_utc"].astype("int64")))
+    print(f"Loaded {len(seed_epoch):,} candidate authors from {CANDIDATE_POOL_PARQUET}")
+    return seed_epoch
+
+
+# ----------------------------------------------------------------
+# One streaming pass over a single month's file. Returns a DataFrame of every
+# submission made by a candidate author that month.
+# ----------------------------------------------------------------
+def process_file(path, seed_epoch):
+    rows = []
+    n_seen = n_bad = 0
+    start = time.time()
+
+    for line in iter_records(path):
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            n_bad += 1
+            continue
+        n_seen += 1
+        if n_seen % 5_000_000 == 0:
+            print(f"[{path.stem}]   ... {n_seen:,} rows, {len(rows):,} kept", flush=True)
+
+        author = rec.get("author")
+        if author not in seed_epoch:          # O(1) set-style membership; also skips [deleted]/[removed]
+            continue
+
+        created = to_epoch(rec.get("created_utc"))
+        seed = seed_epoch[author]
+        if created is not None:
+            months_from_birth = ((created - seed) // 86_400) // 30   # floor div, matches pipeline convention
+        else:
+            months_from_birth = None
+
+        rows.append({
+            "author": author,
+            "id": rec.get("id"),
+            "created_utc": created,
+            "months_from_birth": months_from_birth,
+            "subreddit": rec.get("subreddit"),
+            "score": rec.get("score"),
+            "num_comments": rec.get("num_comments"),
+        })
+
+    elapsed = time.time() - start
+    df = pd.DataFrame(rows, columns=OUT_COLUMNS)
+    for c in INT_COLUMNS:
+        df[c] = pd.array(df[c], dtype="Int64")
+    for c in STRING_COLUMNS:
+        df[c] = df[c].astype("string")
+    print(
+        f"[{path.stem}] {n_seen:,} submissions scanned -> {len(df):,} kept "
+        f"({df['author'].nunique():,} candidate authors) in {elapsed:.0f}s"
+        + (f"  [{n_bad:,} bad lines]" if n_bad else "")
+    )
+    return df
+
+
+# ----------------------------------------------------------------
+# Windows note: writing this many small files fast inside a synced OneDrive folder
+# can trip a transient "PermissionError: Access is denied" on the rename, when
+# OneDrive's sync engine (or AV scanning) briefly holds a lock on the just-written
+# file. Retry with a short linear backoff rather than crashing the whole run over
+# what's usually a sub-second hiccup; still raises if it's a real, persistent problem.
+def save_atomic(df, path, max_retries=5, retry_delay=1.0):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    df.to_parquet(tmp, index=False)
+    for attempt in range(max_retries):
+        try:
+            tmp.replace(path)
+            return
+        except PermissionError:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(retry_delay * (attempt + 1))
+
+
+def chunk_path(month, b):
+    return CHUNK_DIR / f"chunk_RS_{month}_b{b:03d}.parquet"
+
+
+def month_marker(month):
+    return CHUNK_DIR / f".done_{month}"
+
+
+def bucket_marker(b):
+    return CHUNK_DIR / f".split_done_b{b:03d}"
+
+
+# ----------------------------------------------------------------
+# Split a month's matched rows into N_BUCKETS chunk files by hash(author).
+# Skips buckets with zero rows for this month (most buckets in sparse/early months).
+# ----------------------------------------------------------------
+def write_month_buckets(df, month):
+    df = df.copy()
+    df["_bucket"] = df["author"].map(bucket_of)
+    for b, part in df.groupby("_bucket"):
+        save_atomic(part.drop(columns="_bucket"), chunk_path(month, b))
+    CHUNK_DIR.mkdir(parents=True, exist_ok=True)
+    month_marker(month).touch()
+
+
+def run_one(path, seed_epoch):
+    m = FNAME_RE.search(path.name)
+    if not m:
+        raise SystemExit(f"Not an RS_YYYY-MM.zst file: {path.name}")
+    month = m.group(1)
+    df = process_file(path, seed_epoch)
+    write_month_buckets(df, month)
+
+
+# ----------------------------------------------------------------
+# Stage 2: for one bucket, concatenate its chunks across every month and write the
+# per-author deliverables. Bounded to ~1/N_BUCKETS of the total data.
+# ----------------------------------------------------------------
+def split_bucket(b):
+    chunks = sorted(CHUNK_DIR.glob(f"chunk_RS_*_b{b:03d}.parquet"))
+    if not chunks:
+        return 0
+    combined = pd.concat([pd.read_parquet(c) for c in chunks], ignore_index=True)
+    n_authors = 0
+    # One subfolder per bucket -- a flat ~200k-file directory chokes OnDemand's
+    # web file browser with proxy timeouts (confirmed 2026-09-18), even though
+    # the filesystem itself handles it fine. See reorganize_per_author_candidates.py
+    # for files written before this existed.
+    bucket_dir = PER_AUTHOR_DIR / f"b{b:03d}"
+    bucket_dir.mkdir(parents=True, exist_ok=True)
+    for author, part in combined.groupby("author"):
+        part = part.sort_values("created_utc").reset_index(drop=True)
+        save_atomic(part, bucket_dir / f"{author}_submissions.parquet")
+        n_authors += 1
+    return n_authors
+
+
+def split_all():
+    total_authors = 0
+    for b in range(N_BUCKETS):
+        if bucket_marker(b).exists():
+            print(f"[bucket {b:03d}] already split, skipping")
+            continue
+        n = split_bucket(b)
+        bucket_marker(b).touch()
+        total_authors += n
+        print(f"[bucket {b:03d}] wrote {n:,} per-author submission files")
+    print(f"\nSplit complete: {total_authors:,} candidate authors' submission files written to {PER_AUTHOR_DIR}")
+
+
+# ----------------------------------------------------------------
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("file", nargs="?", help="single RS_YYYY-MM.zst to process (name or path); omit to loop all")
+    ap.add_argument("--split-only", action="store_true", help="skip fetching; (re)build per-author files from existing chunks")
+    ap.add_argument("--bucket", type=int, default=None, help="with --split-only, process just this bucket (Slurm array shape)")
+    ap.add_argument("--no-split", action="store_true", help="process all months but skip the split stage")
+    args = ap.parse_args()
+
+    if args.split_only:
+        if args.bucket is not None:
+            n = split_bucket(args.bucket)
+            bucket_marker(args.bucket).touch()
+            print(f"[bucket {args.bucket:03d}] wrote {n:,} per-author submission files")
+        else:
+            split_all()
+        return
+
+    seed_epoch = load_candidates()
+
+    # single-file mode: Slurm array shape, one month, no split
+    if args.file:
+        p = Path(args.file)
+        if not p.is_absolute() and not p.exists():
+            p = SUBMISSIONS_DIR / p.name
+        if not p.exists():
+            raise SystemExit(f"File not found: {p}")
+        run_one(p, seed_epoch)
+        return
+
+    files = sorted(SUBMISSIONS_DIR.glob("RS_*.zst"))
+    if not files:
+        raise SystemExit(
+            f"No RS_*.zst files in {SUBMISSIONS_DIR}\n"
+            f"Set REDDIT_SUBMISSIONS_DIR to the submissions dir on this machine "
+            f"(cluster: /nfs/turbo/si-ksrini/Reddit/raw/submissions)."
+        )
+    print(f"Found {len(files)} submission files in {SUBMISSIONS_DIR}")
+    for p in files:
+        m = FNAME_RE.search(p.name)
+        if m and month_marker(m.group(1)).exists():
+            print(f"[{m.group(1)}] already fetched, skipping")
+            continue
+        run_one(p, seed_epoch)
+
+    if not args.no_split:
+        split_all()
+
+
+if __name__ == "__main__":
+    main()

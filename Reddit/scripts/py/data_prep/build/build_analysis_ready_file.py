@@ -35,14 +35,14 @@ df = df.merge(birth_posts[["author", "date_birth", "date_birth_post"]], on="auth
 
 # ----------------------------------------------------------------
 # Drop authors whose estimated birth date is after June 2024
-# (post-cutoff births have incomplete post-birth histories)
+# data extends through Dec 2025, so June 2024 is the latest birth date with a full 18mo post-birth window;
 # ----------------------------------------------------------------
 before_authors = df["author"].nunique()
 before_rows    = len(df)
-df = df[df["date_birth"] <= "2023-06-30"]
+df = df[df["date_birth"] <= "2024-06-30"]
 n_after_date_drop = df["author"].nunique()
 dropped_authors   = before_authors - n_after_date_drop
-print(f"  Dropped {dropped_authors:,} authors with date_birth after June 2023")
+print(f"  Dropped {dropped_authors:,} authors with date_birth after June 2024")
 print(f"  Remaining: {n_after_date_drop:,} unique authors ({len(df):,} rows, down from {before_rows:,})")
 
 # ----------------------------------------------------------------
@@ -126,7 +126,7 @@ print(f"\n==================================================")
 print(f"SAMPLE FUNNEL")
 print(f"==================================================")
 print(f"  Original (merged_births_and_posts_FULL):    {before_authors:>7,}")
-print(f"  After dropping births after June 2023:      {n_after_date_drop:>7,}  (-{before_authors - n_after_date_drop:,})")
+print(f"  After dropping births after June 2024:      {n_after_date_drop:>7,}  (-{before_authors - n_after_date_drop:,})")
 print(f"  After dropping p99 lifetime posters:        {n_after_p99_drop:>7,}  (-{n_after_date_drop - n_after_p99_drop:,})")
 print(f"  After full_18_pre == 1:                     {n_full18:>7,}  (-{n_after_p99_drop - n_full18:,})")
 print(f"=="*25)

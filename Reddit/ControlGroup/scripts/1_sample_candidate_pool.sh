@@ -6,9 +6,11 @@
 # One array task per monthly RS_*.zst file: each task streams its file once and
 # writes a chunk to
 #     Reddit/ControlGroup/data/1_candidate_pool_chunks/chunk_RS_YYYY-MM.parquet
+# plus the full per-month author list (candidates + treatment authors) to
+#     Reddit/data/all_authors/YYYY-MM_RS_authors.parquet
 # Months outside the quota table (before 2010-09 / after its last month) are
-# no-ops. A task whose chunk already exists is skipped, so a partly-finished
-# array can be resubmitted as-is.
+# no-ops. A task whose chunk AND all_authors file both already exist is
+# skipped, so a partly-finished array can be resubmitted as-is.
 #
 # After the array finishes, build the combined deliverable
 #     Reddit/ControlGroup/data/1_candidate_pool.parquet
@@ -41,6 +43,7 @@ export REDDIT_SUBMISSIONS_DIR=/nfs/turbo/si-ksrini/Reddit/raw/submissions
 export TREATMENT_AUTHORS_CSV=/nfs/turbo/si-ksrini/Reddit/data/final/treatment_authors.csv
 export BIRTH_DATE_DIST_CSV=/nfs/turbo/si-ksrini/Reddit/data/descriptives/date_birth_dist_full.csv
 export CONTROLGROUP_DATA_DIR=/nfs/turbo/si-ksrini/Reddit/ControlGroup/data
+export ALL_AUTHORS_DIR=/nfs/turbo/si-ksrini/Reddit/data/all_authors
 
 mkdir -p logs
 : "${SLURM_ARRAY_TASK_ID:?must be run as a Slurm array job}"
@@ -56,9 +59,11 @@ fi
 
 # The .py doesn't self-skip in single-file mode, so guard here to keep the array
 # resumable (a re-submitted array re-runs completed months otherwise).
+MONTH="$(basename "$F" .zst | sed 's/^RS_//')"
 CHUNK="$CONTROLGROUP_DATA_DIR/1_candidate_pool_chunks/chunk_$(basename "$F" .zst).parquet"
-if [ -f "$CHUNK" ]; then
-    echo "$(basename "$F"): chunk already exists — skipping."
+ALL_AUTHORS="$ALL_AUTHORS_DIR/${MONTH}_RS_authors.parquet"
+if [ -f "$CHUNK" ] && [ -f "$ALL_AUTHORS" ]; then
+    echo "$(basename "$F"): chunk + all_authors already exist — skipping."
     exit 0
 fi
 

@@ -54,7 +54,8 @@ Final dataframe will be 3 columns: author, id, created_utc
 #
 # Excluded from the pool: rows with no author / no id / no parseable created_utc, author
 # in {[deleted], [removed], [unknown], AutoModerator}, and any author in
-# treatment_authors.csv.
+# treatment_authors.csv (re-checked at combine time against the current list, not just
+# at draw time).
 #
 # Input:   Reddit/raw/submissions/RS_YYYY-MM.zst              (monthly NDJSON dumps)
 #          Reddit/data/final/treatment_authors.csv            (author column -> exclude)
@@ -64,6 +65,11 @@ Final dataframe will be 3 columns: author, id, created_utc
 #            per-month, resumable; columns: author, id, created_utc, seed_month, subreddit
 #          Reddit/ControlGroup/data/1_candidate_pool.parquet
 #            the deliverable: one row per candidate author, same columns
+#          Reddit/data/all_authors/YYYY-MM_RS_authors.parquet
+#            per-month, resumable; every unique non-placeholder author seen that month
+#            (candidates AND treatment authors). Columns: author, is_treatment,
+#            seed_month. "Unique" is scoped to the month -- an author active across
+#            several months appears in several of these files.
 #
 # Usage (from this file's directory, Reddit/ControlGroup/scripts/):
 #   python 1_sample_candidate_pool.py                 # loop every required month, then combine
@@ -72,11 +78,12 @@ Final dataframe will be 3 columns: author, id, created_utc
 #   python 1_sample_candidate_pool.py --allow-missing-months   # local testing with a partial archive
 #
 # Paths: the raw dumps sit at a different layout on the cluster, so the submissions dir /
-#        treatment csv / birth-dist csv / output dir can each be overridden:
+#        treatment csv / birth-dist csv / output dirs can each be overridden:
 #          REDDIT_SUBMISSIONS_DIR   dir holding RS_YYYY-MM.zst   (default: repo Reddit/raw/submissions)
 #          TREATMENT_AUTHORS_CSV    treatment_authors.csv        (default: repo Reddit/data/final/...)
 #          BIRTH_DATE_DIST_CSV      date_birth_dist_full.csv      (default: repo Reddit/data/descriptives/...)
-#          CONTROLGROUP_DATA_DIR    output dir                    (default: repo Reddit/ControlGroup/data)
+#          CONTROLGROUP_DATA_DIR    candidate pool output dir     (default: repo Reddit/ControlGroup/data)
+#          ALL_AUTHORS_DIR          all-authors output dir        (default: repo Reddit/data/all_authors)
 
 import argparse
 import io
@@ -97,6 +104,7 @@ SUBMISSIONS_DIR = Path(os.environ.get("REDDIT_SUBMISSIONS_DIR", ROOT / "Reddit/r
 TREATMENT_CSV   = Path(os.environ.get("TREATMENT_AUTHORS_CSV", ROOT / "Reddit/data/final/treatment_authors.csv"))
 BIRTH_DIST_CSV  = Path(os.environ.get("BIRTH_DATE_DIST_CSV", ROOT / "Reddit/data/descriptives/date_birth_dist_full.csv"))
 DATA_DIR        = Path(os.environ.get("CONTROLGROUP_DATA_DIR", ROOT / "Reddit/ControlGroup/data"))
+ALL_AUTHORS_DIR = Path(os.environ.get("ALL_AUTHORS_DIR", ROOT / "Reddit/data/all_authors"))
 
 CHUNK_DIR     = DATA_DIR / "1_candidate_pool_chunks"
 COMBINED_PATH = DATA_DIR / "1_candidate_pool.parquet"
@@ -114,6 +122,7 @@ CHUNK_RE   = re.compile(r"chunk_RS_(\d{4}-\d{2})\.parquet$")
 EXCLUDE_AUTHORS = {"[deleted]", "[removed]", "[unknown]", "AutoModerator"}
 
 OUT_COLUMNS = ["author", "id", "created_utc", "seed_month", "subreddit"]
+ALL_AUTHORS_COLUMNS = ["author", "is_treatment", "seed_month"]
 
 
 # ----------------------------------------------------------------
@@ -183,14 +192,20 @@ def load_treatment_authors():
 
 
 # ----------------------------------------------------------------
-# One streaming pass over a month: collapse to distinct eligible authors,
-# keeping one uniformly-random submission per author via reservoir sampling
-# (Algorithm R, k=1), then draw `quota` authors without replacement. Returns a
-# DataFrame of the drawn authors' seed submissions.
+# One streaming pass over a month: collapse to distinct eligible (non-treatment)
+# authors, keeping one uniformly-random submission per author via reservoir
+# sampling (Algorithm R, k=1), then draw `quota` authors without replacement.
+# Along the way, every non-placeholder author encountered -- candidates AND
+# treatment authors -- is recorded (just the name, no rng involved) for the
+# all_authors output. This side-channel doesn't touch `rng`, so a month already
+# chunked by an earlier version of this script reproduces byte-for-byte.
+#
+# Returns a DataFrame of the drawn candidate authors' seed submissions.
 # ----------------------------------------------------------------
 def process_file(path, seed_month, quota, treatment, rng):
-    reservoir  = {}   # author -> [id, created_utc_epoch, subreddit]
-    seen_count = {}   # author -> eligible rows seen so far this month
+    reservoir  = {}   # author -> [id, created_utc_epoch, subreddit]  (non-treatment only)
+    seen_count = {}   # author -> eligible rows seen so far this month (non-treatment only)
+    all_authors_seen = set()   # every non-placeholder author this month (candidates + treatment)
     n_seen = n_bad = n_skip = 0
     start = time.time()
 
@@ -205,13 +220,19 @@ def process_file(path, seed_month, quota, treatment, rng):
             print(f"[{seed_month}]   ... {n_seen:,} rows, {len(reservoir):,} eligible authors", flush=True)
 
         author = rec.get("author")
-        if not author or author in EXCLUDE_AUTHORS or author in treatment:
+        if not author or author in EXCLUDE_AUTHORS:
             n_skip += 1
             continue
 
         sid = rec.get("id")
         created = to_epoch(rec.get("created_utc"))
         if sid is None or created is None:
+            n_skip += 1
+            continue
+
+        all_authors_seen.add(author)
+
+        if author in treatment:
             n_skip += 1
             continue
 
@@ -224,6 +245,9 @@ def process_file(path, seed_month, quota, treatment, rng):
             reservoir[author] = [sid, created, rec.get("subreddit")]
 
     elapsed = time.time() - start
+
+    save_all_authors(all_authors_seen, treatment, seed_month)
+
     n_eligible = len(reservoir)
 
     if n_eligible < quota:
@@ -247,6 +271,18 @@ def process_file(path, seed_month, quota, treatment, rng):
         + (f"  [{n_bad:,} bad lines]" if n_bad else "")
     )
     return df
+
+
+# ----------------------------------------------------------------
+def all_authors_path(seed_month):
+    return ALL_AUTHORS_DIR / f"{seed_month}_RS_authors.parquet"
+
+
+def save_all_authors(all_authors_seen, treatment, seed_month):
+    rows = [(author, author in treatment, seed_month) for author in all_authors_seen]
+    df = pd.DataFrame(rows, columns=ALL_AUTHORS_COLUMNS)
+    df["is_treatment"] = df["is_treatment"].astype(bool)
+    save_atomic(df, all_authors_path(seed_month))
 
 
 # ----------------------------------------------------------------
@@ -305,14 +341,24 @@ def combine(quota_table, seed):
         .sort_values(["seed_month", "author"])
         .reset_index(drop=True)
     )
-    n_after = len(combined)
+    n_after_dedup = len(combined)
+
+    # A candidate drawn from an already-processed month can later turn out to be a
+    # treatment author if treatment_authors.csv grows afterward (e.g. a birth-date
+    # cutoff expansion) -- re-check against the current list every combine, not just
+    # at draw time.
+    treatment = load_treatment_authors()
+    combined = combined[~combined["author"].isin(treatment)].reset_index(drop=True)
+    n_final = len(combined)
     save_atomic(combined, COMBINED_PATH)
 
     print(f"\nCombined {len(chunks)} chunk(s) -> {COMBINED_PATH}")
     print(
-        f"  {n_before:,} rows -> {n_after:,} unique candidate authors "
-        f"({n_before - n_after:,} cross-month duplicates dropped)"
+        f"  {n_before:,} rows -> {n_after_dedup:,} unique candidate authors "
+        f"({n_before - n_after_dedup:,} cross-month duplicates dropped)"
     )
+    if n_final != n_after_dedup:
+        print(f"  Dropped {n_after_dedup - n_final:,} now-treatment author(s) -> {n_final:,} final")
 
     realized = combined["seed_month"].value_counts().to_dict()
     off = [
@@ -373,8 +419,8 @@ def main():
 
     print(f"Processing {len(present)} month(s) from {SUBMISSIONS_DIR}")
     for ym in present:
-        if chunk_path(ym).exists():
-            print(f"[{ym}] chunk exists, skipping")
+        if chunk_path(ym).exists() and all_authors_path(ym).exists():
+            print(f"[{ym}] chunk + all_authors exist, skipping")
             continue
         run_one(SUBMISSIONS_DIR / f"RS_{ym}.zst", quota_table, treatment, args.seed)
 
