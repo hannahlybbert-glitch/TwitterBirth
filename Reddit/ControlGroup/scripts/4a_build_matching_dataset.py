@@ -1,19 +1,27 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-25
+# Updated: 2026-09-30
 # Purpose: Step 4a of the Reddit control-group pipeline. Stack treatment and candidate
 #          authors into one author-level matching dataset.
 #
 # For each group, the submission and comment files are joined on author: the
 # author-level columns (identical in both files) are kept once, and the
 # type-specific columns get a sub_ / com_ prefix. Then the two groups are stacked
-# with treated = 1 / 0. The only drop: candidates who are also treatment authors
-# (see main()).
+# with treated = 1 / 0. Drops (see main()):
+#   - candidates who are also treatment authors
+#   - anyone with birth_after_cutoff == 1 (steps 3 / treatment volume only flag it;
+#     every author in the matching sample needs the full 18-month post-birth runway)
+# This file is the sample definition only -- values stay raw. Transforms (log1p),
+# standardization and weights live in 4b.
 #
 # Input:  Reddit/data/volume/treatment_submission_volume.parquet   (build_treatment_volume_matrix.py)
 #         Reddit/data/volume/treatment_comment_volume.parquet
 #         Reddit/ControlGroup/data/3b_candidate_submission_volume.parquet  (3_build_monthly_activity_matrix.py)
 #         Reddit/ControlGroup/data/3a_candidate_comment_volume.parquet
 # Output: Reddit/ControlGroup/data/4a_matching_dataset.parquet
+#         Reddit/ControlGroup/data/test/4a_matching_dataset_test.parquet
+#           random TEST_N treatment + TEST_N candidate rows of the above (seeded), for
+#           testing 4b without the full data (4b_match_authors.py --test)
 #   one row per author. Columns:
 #     author, treated, designated_subreddit, date_birth_post, date_birth, days_from,
 #     birth_after_cutoff, active_since, account_age_days,
@@ -48,6 +56,10 @@ CANDIDATE_SUBMISSIONS = DATA_DIR / "3b_candidate_submission_volume.parquet"
 CANDIDATE_COMMENTS    = DATA_DIR / "3a_candidate_comment_volume.parquet"
 
 OUTPUT_PATH = DATA_DIR / "4a_matching_dataset.parquet"
+TEST_OUTPUT_PATH = DATA_DIR / "test" / "4a_matching_dataset_test.parquet"
+
+TEST_N = 100              # authors per group in the test file
+TEST_SEED = 20260930
 
 AUTHOR_COLUMNS = [
     "author", "designated_subreddit", "date_birth_post", "date_birth", "days_from",
@@ -111,6 +123,13 @@ def main():
         candidates = candidates[~candidates["author"].isin(overlap)]
         print(f"Dropped {len(overlap):,} candidate(s) who are also treatment authors, e.g. {sorted(overlap)[:5]}")
 
+    # Treatment should already be all 0 here (build_analysis_ready_file.py applies the
+    # same cutoff) -- a nonzero treatment count means the two cutoffs disagree.
+    for label, group in [("treatment", treatment), ("candidate", candidates)]:
+        print(f"Dropping {int(group['birth_after_cutoff'].sum()):,} {label} author(s) with birth_after_cutoff == 1")
+    treatment  = treatment[treatment["birth_after_cutoff"] == 0]
+    candidates = candidates[candidates["birth_after_cutoff"] == 0]
+
     # Candidate columns first so the pre-birth block leads; treatment-only post
     # columns land at the end (NaN for candidates).
     columns = list(candidates.columns) + [c for c in treatment.columns if c not in candidates.columns]
@@ -120,6 +139,13 @@ def main():
     print(f"Treatment authors: {len(treatment):,}")
     print(f"Candidate authors: {len(candidates):,}")
     print(f"Wrote {len(df):,} rows x {df.shape[1]} columns -> {OUTPUT_PATH}")
+
+    test = pd.concat(
+        [g.sample(n=min(TEST_N, len(g)), random_state=TEST_SEED) for g in (df[df["treated"] == 1], df[df["treated"] == 0])],
+        ignore_index=True,
+    )
+    save_atomic(test, TEST_OUTPUT_PATH)
+    print(f"Wrote test sample ({(test['treated'] == 1).sum()} treatment + {(test['treated'] == 0).sum()} candidate) -> {TEST_OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

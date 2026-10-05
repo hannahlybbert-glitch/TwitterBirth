@@ -60,6 +60,8 @@ dependencies:
       - jiter==0.8.2
       - openai==1.64.0
       - pyarrow==21.0.0
+      - scipy==1.13.1
+      - matplotlib==3.9.2
       - pydantic==2.10.6
       - pydantic-core==2.27.2
       - python-dotenv==1.0.1

@@ -11,6 +11,7 @@
 #
 # Writes:
 #     $CONTROLGROUP_DATA_DIR/4a_matching_dataset.parquet
+#     $CONTROLGROUP_DATA_DIR/test/4a_matching_dataset_test.parquet   (100 + 100 sample for testing 4b)
 
 #SBATCH --partition=standard
 #SBATCH --account=ksrini0

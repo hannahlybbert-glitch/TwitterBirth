@@ -1,6 +1,6 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-02
-# Updated: 2026-09-17
+# Updated: 2026-10-01 (added body, ups, downs)
 # Purpose: For each candidate author in ControlGroup/data/1_candidate_pool.parquet, pull
 #          every comment they ever wrote from the raw comments archive.
 # Output:  One file per author: Reddit/ControlGroup/data/per_author_candidates/{author}_comments.parquet
@@ -71,15 +71,14 @@ FNAME_RE   = re.compile(r"RC_(\d{4}-\d{2})\.zst$")
 
 N_BUCKETS = 64   # ~1,500 candidate authors/bucket at 100k -- keeps stage 2 memory bounded
 
-# Lean schema: this is the only pass over the raw archive for candidates, so anything
-# left out here is gone unless re-fetched later. Full text (body) is deliberately
-# dropped -- volume/subreddit matching doesn't need it, and text analysis is unlikely
-# enough (per Hannah, 2026-09-17) that re-fetching it just for the final ~matched
-# subset later is cheaper than storing it for all 100k candidates now. subreddit is
-# tracked by NAME only (no subreddit_id) so this matches the treatment-side schema
-# (births_and_posts_FULL.csv never captured subreddit_id) -- see extract_treatment_volume.py.
-OUT_COLUMNS    = ["author", "id", "created_utc", "months_from_birth", "subreddit", "score"]
-INT_COLUMNS    = ["created_utc", "months_from_birth", "score"]
+# Schema: this is the only pass over the raw archive for candidates, so anything left
+# out here is gone unless re-fetched later. body added 2026-10-01 (text summaries for
+# matching), flattened the same way as the treatment side (pair_authors_comments.py).
+# ups/downs: Reddit stopped exposing real downvotes ~2014, so after that downs is ~0
+# and ups ~= score; score is the main popularity measure. subreddit is tracked by NAME
+# only (no subreddit_id) to match the treatment-side schema.
+OUT_COLUMNS    = ["author", "id", "created_utc", "months_from_birth", "subreddit", "score", "ups", "downs", "body"]
+INT_COLUMNS    = ["created_utc", "months_from_birth", "score", "ups", "downs"]
 STRING_COLUMNS = [c for c in OUT_COLUMNS if c not in INT_COLUMNS]
 
 
@@ -100,9 +99,10 @@ def iter_records(path):
 
 # ----------------------------------------------------------------
 # created_utc is int/float in some monthly dumps and a string in others
-# (confirmed on RC_2012-12). Coerce instead of isinstance-checking.
+# (confirmed on RC_2012-12). Coerce instead of isinstance-checking. Also used
+# for score/ups/downs.
 # ----------------------------------------------------------------
-def to_epoch(v):
+def to_int(v):
     if isinstance(v, bool):
         return None
     if isinstance(v, (int, float)):
@@ -113,6 +113,13 @@ def to_epoch(v):
         except ValueError:
             return None
     return None
+
+
+def flatten(text):
+    """Collapse newlines/tabs in a comment body -- same as pair_authors_comments.py."""
+    if not isinstance(text, str):
+        return None
+    return text.replace("\r", " ").replace("\n", " ").replace("\t", " ")
 
 
 def bucket_of(author):
@@ -161,7 +168,7 @@ def process_file(path, seed_epoch):
         if author not in seed_epoch:          # O(1) set-style membership; also skips [deleted]/[removed]
             continue
 
-        created = to_epoch(rec.get("created_utc"))
+        created = to_int(rec.get("created_utc"))
         seed = seed_epoch[author]
         if created is not None:
             months_from_birth = ((created - seed) // 86_400) // 30   # floor div, matches pipeline convention
@@ -174,7 +181,10 @@ def process_file(path, seed_epoch):
             "created_utc": created,
             "months_from_birth": months_from_birth,
             "subreddit": rec.get("subreddit"),
-            "score": rec.get("score"),
+            "score": to_int(rec.get("score")),
+            "ups": to_int(rec.get("ups")),
+            "downs": to_int(rec.get("downs")),
+            "body": flatten(rec.get("body")),
         })
 
     elapsed = time.time() - start

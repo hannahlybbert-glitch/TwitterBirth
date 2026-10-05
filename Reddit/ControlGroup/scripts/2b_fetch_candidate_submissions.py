@@ -1,6 +1,6 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-02
-# Updated: 2026-09-17
+# Updated: 2026-10-01 (added title, selftext, url, over_18, stickied)
 # Purpose: For each candidate author in ControlGroup/data/1_candidate_pool.parquet, pull
 #          every submission they ever made from the raw submissions archive.
 # Output:  One file per author: Reddit/ControlGroup/data/per_author_candidates/{author}_submissions.parquet
@@ -68,15 +68,17 @@ FNAME_RE   = re.compile(r"RS_(\d{4}-\d{2})\.zst$")
 
 N_BUCKETS = 64   # ~1,500 candidate authors/bucket at 100k -- keeps stage 2 memory bounded
 
-# Lean schema, matching 2a and the treatment side (extract_treatment_volume.py): no
-# title/selftext/url/permalink (text analysis unlikely; this is the only pass over the
-# raw archive for candidates, so dropped fields are gone unless re-fetched later), and
-# subreddit tracked by NAME only (no subreddit_id -- not available in the treatment-side
-# source, births_and_posts_FULL.csv). num_comments/score are cheap engagement signals
-# kept for possible later use.
-OUT_COLUMNS    = ["author", "id", "created_utc", "months_from_birth", "subreddit", "score", "num_comments"]
+# Schema: every column here also exists in the treatment-side source
+# (births_and_posts_FULL.csv), so the two sides can be compared directly. title/selftext/
+# url/over_18/stickied added 2026-10-01 (text summaries for matching); text is kept raw,
+# not flattened, same as the treatment side. score is the popularity measure (submission
+# ups/downs aren't in the treatment source, and downvotes stopped being exposed ~2014).
+# subreddit is tracked by NAME only (no subreddit_id -- not in the treatment source).
+OUT_COLUMNS    = ["author", "id", "created_utc", "months_from_birth", "subreddit", "score", "num_comments",
+                  "title", "selftext", "url", "over_18", "stickied"]
 INT_COLUMNS    = ["created_utc", "months_from_birth", "score", "num_comments"]
-STRING_COLUMNS = [c for c in OUT_COLUMNS if c not in INT_COLUMNS]
+BOOL_COLUMNS   = ["over_18", "stickied"]
+STRING_COLUMNS = [c for c in OUT_COLUMNS if c not in INT_COLUMNS + BOOL_COLUMNS]
 
 
 # ----------------------------------------------------------------
@@ -96,9 +98,10 @@ def iter_records(path):
 
 # ----------------------------------------------------------------
 # created_utc is int/float in some monthly dumps and a string in others
-# (confirmed on the 2012-12 dumps). Coerce instead of isinstance-checking.
+# (confirmed on the 2012-12 dumps). Coerce instead of isinstance-checking. Also
+# used for score/num_comments.
 # ----------------------------------------------------------------
-def to_epoch(v):
+def to_int(v):
     if isinstance(v, bool):
         return None
     if isinstance(v, (int, float)):
@@ -109,6 +112,10 @@ def to_epoch(v):
         except ValueError:
             return None
     return None
+
+
+def to_bool(v):
+    return v if isinstance(v, bool) else None
 
 
 def bucket_of(author):
@@ -155,7 +162,7 @@ def process_file(path, seed_epoch):
         if author not in seed_epoch:          # O(1) set-style membership; also skips [deleted]/[removed]
             continue
 
-        created = to_epoch(rec.get("created_utc"))
+        created = to_int(rec.get("created_utc"))
         seed = seed_epoch[author]
         if created is not None:
             months_from_birth = ((created - seed) // 86_400) // 30   # floor div, matches pipeline convention
@@ -168,14 +175,21 @@ def process_file(path, seed_epoch):
             "created_utc": created,
             "months_from_birth": months_from_birth,
             "subreddit": rec.get("subreddit"),
-            "score": rec.get("score"),
-            "num_comments": rec.get("num_comments"),
+            "score": to_int(rec.get("score")),
+            "num_comments": to_int(rec.get("num_comments")),
+            "title": rec.get("title"),
+            "selftext": rec.get("selftext"),
+            "url": rec.get("url"),
+            "over_18": to_bool(rec.get("over_18")),
+            "stickied": to_bool(rec.get("stickied")),
         })
 
     elapsed = time.time() - start
     df = pd.DataFrame(rows, columns=OUT_COLUMNS)
     for c in INT_COLUMNS:
         df[c] = pd.array(df[c], dtype="Int64")
+    for c in BOOL_COLUMNS:
+        df[c] = pd.array(df[c], dtype="boolean")
     for c in STRING_COLUMNS:
         df[c] = df[c].astype("string")
     print(
