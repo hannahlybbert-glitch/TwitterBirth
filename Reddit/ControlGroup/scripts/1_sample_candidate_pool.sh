@@ -1,22 +1,7 @@
 #!/bin/bash
-# Draw the control-group candidate pool — cluster runner (Slurm array).
-# Run from the Reddit project root:
-#     sbatch ControlGroup/scripts/1_sample_candidate_pool.sh
-#
-# One array task per monthly RS_*.zst file: each task streams its file once and
-# writes a chunk to
-#     Reddit/ControlGroup/data/1_candidate_pool_chunks/chunk_RS_YYYY-MM.parquet
-# plus the full per-month author list (candidates + treatment authors) to
-#     Reddit/data/all_authors/YYYY-MM_RS_authors.parquet
-# Months outside the quota table (before 2010-09 / after its last month) are
-# no-ops. A task whose chunk AND all_authors file both already exist is
-# skipped, so a partly-finished array can be resubmitted as-is.
-#
-# After the array finishes, build the combined deliverable
-#     Reddit/ControlGroup/data/1_candidate_pool.parquet
-# with either (both cheap — ~154 small parquets):
-#     python ControlGroup/scripts/1_sample_candidate_pool.py --combine-only         # login node
-#     sbatch --dependency=afterok:<array_job_id> ...                                # dependent job
+# Purpose: Step 1 cluster runner -- one array task per monthly RS_*.zst (skips months already done)
+# Run from the Reddit project root: sbatch ControlGroup/scripts/1_sample_candidate_pool.sh
+# Then combine: python ControlGroup/scripts/1_sample_candidate_pool.py --combine-only
 
 #SBATCH --partition=standard
 #SBATCH --account=ksrini0
@@ -26,19 +11,16 @@
 #SBATCH --job-name=sample_candidate_pool
 #SBATCH --output=logs/sample_candidate_pool_%A_%a.out
 #SBATCH --error=logs/sample_candidate_pool_%A_%a.err
-# Upper bound is deliberately generous — the archive is ~230 months and
-# out-of-range tasks exit 0 cleanly. %20 caps concurrency so we don't hammer
-# the shared filesystem.
+# generous upper bound (extra tasks exit cleanly); %20 caps concurrency
 #SBATCH --array=0-300%20
 
 set -euo pipefail
 shopt -s nullglob
 
-# Full path to the TwitterBirth env's Python — don't rely on module/conda PATH
-# ordering in a non-interactive batch shell (see process.sh for the war story).
+# Full path -- module/conda PATH is unreliable in batch jobs
 PYTHON=/home/hlybbert/.conda/envs/TwitterBirth/bin/python3
 
-# Cluster data layout (read by the .py via os.environ.get with repo-relative fallbacks).
+# Cluster paths
 export REDDIT_SUBMISSIONS_DIR=/nfs/turbo/si-ksrini/Reddit/raw/submissions
 export TREATMENT_AUTHORS_CSV=/nfs/turbo/si-ksrini/Reddit/data/final/treatment_authors.csv
 export BIRTH_DATE_DIST_CSV=/nfs/turbo/si-ksrini/Reddit/data/descriptives/date_birth_dist_full.csv
@@ -57,8 +39,7 @@ if [ -z "$F" ]; then
     exit 0
 fi
 
-# The .py doesn't self-skip in single-file mode, so guard here to keep the array
-# resumable (a re-submitted array re-runs completed months otherwise).
+# Skip months already done
 MONTH="$(basename "$F" .zst | sed 's/^RS_//')"
 CHUNK="$CONTROLGROUP_DATA_DIR/1_candidate_pool_chunks/chunk_$(basename "$F" .zst).parquet"
 ALL_AUTHORS="$ALL_AUTHORS_DIR/${MONTH}_RS_authors.parquet"

@@ -15,12 +15,10 @@
 
 set -euo pipefail
 
-# Full path to the TwitterBirth env's Python (don't rely on module/conda PATH in a
-# non-interactive batch shell). -u keeps stdout unbuffered so per-month progress
-# lines stream to the log as they happen.
+# Full path -- module/conda PATH is unreliable in batch jobs
 PYTHON=/home/hlybbert/.conda/envs/TwitterBirth/bin/python3
 
-# Cluster data layout (read by the .py via os.environ.get with repo-relative fallbacks).
+# Cluster paths
 export REDDIT_SUBMISSIONS_DIR=/nfs/turbo/si-ksrini/Reddit/raw/submissions
 export TREATMENT_AUTHORS_CSV=/nfs/turbo/si-ksrini/Reddit/data/final/treatment_authors.csv
 export BIRTH_DATE_DIST_CSV=/nfs/turbo/si-ksrini/Reddit/data/descriptives/date_birth_dist_full.csv

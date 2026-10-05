@@ -1,6 +1,6 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-22
-# Updated: 2026-09-25
+# Updated: 2026-10-05
 # Purpose: Build the treatment-side monthly volume matrix (18mo pre + 18mo post birth)
 #          plus the author-level features used for matching, directly from
 #          births_and_posts_FULL.csv and treatment_author_comments.parquet.
@@ -30,6 +30,8 @@
 #     n_subreddits_life, n_subreddits_pre,
 #     18pre..1pre, 0post..17post           (all activity)
 #     des_18pre..des_1pre, des_0post..des_17post   (designated subreddit only)
+#     median_body_chars (comments) / median_title_chars, median_selftext_chars (submissions):
+#       median length over -18..-1, excluding empty and [deleted]/[removed]; NaN if none
 #
 # Usage:
 #   python build_treatment_volume_matrix.py
@@ -54,6 +56,11 @@ COMMENT_VOLUME_PATH    = VOLUME_DATA_DIR / "treatment_comment_volume.parquet"
 
 MONTH_RANGE = list(range(-18, 18))     # months_from_birth -18..17
 PRE_RANGE   = list(range(-18, 0))      # months_from_birth -18..-1
+
+# Text field -> median character length over PRE_RANGE (same as step 3 candidate side)
+COMMENT_TEXT    = {"body": "median_body_chars"}
+SUBMISSION_TEXT = {"title": "median_title_chars", "selftext": "median_selftext_chars"}
+REMOVED_TEXT    = {"[deleted]", "[removed]"}
 
 # Same cutoff as build_analysis_ready_file.py. Flag only -- never dropped here.
 BIRTH_CUTOFF = pd.Timestamp("2024-07-01")
@@ -88,6 +95,20 @@ def to_epoch(ts):
     return (ts - pd.Timestamp("1970-01-01")) // pd.Timedelta(seconds=1)   # NaT -> NaN
 
 
+# Character length; NaN for missing, empty, or [deleted]/[removed]
+def char_length(text):
+    text = text.astype("string")
+    n = text.str.len()
+    keep = (n > 0).fillna(False) & ~text.isin(REMOVED_TEXT).fillna(False)
+    return n.where(keep).astype("float")
+
+
+# Median character length per author over PRE_RANGE, one column per text field
+def text_medians(df, text):
+    pre = df[df["months_from_birth"].isin(PRE_RANGE)]
+    return pd.DataFrame({name: char_length(pre[src]).groupby(pre["author"]).median() for src, name in text.items()})
+
+
 def _clean_months(df):
     df = df.copy()
     df["months_from_birth"] = pd.to_numeric(df["months_from_birth"], errors="coerce")
@@ -103,7 +124,7 @@ def load_submissions():
     df = pd.read_csv(
         BIRTHS_AND_POSTS_CSV,
         usecols=["author", "subreddit", "created_utc", "months_from_birth",
-                 "birth_post", "days_from", "date_birth", "date_birth_post"],
+                 "birth_post", "days_from", "date_birth", "date_birth_post", "title", "selftext"],
     )
     df["created_utc"] = to_epoch(pd.to_datetime(df["created_utc"], format="mixed", errors="coerce"))
 
@@ -115,10 +136,12 @@ def load_submissions():
         "days_from": births["days_from"].astype(float),
     })
 
-    df = _clean_months(df[["author", "subreddit", "created_utc", "months_from_birth"]])
+    df = _clean_months(df[["author", "subreddit", "created_utc", "months_from_birth", "title", "selftext"]])
+    sub_text = text_medians(df, SUBMISSION_TEXT)
+    df = df.drop(columns=list(SUBMISSION_TEXT))
     print(f"Loaded {len(df):,} submissions ({df['author'].nunique():,} authors, "
           f"{len(births):,} birth posts) from {BIRTHS_AND_POSTS_CSV}")
-    return df, births
+    return df, births, sub_text
 
 
 def load_comments():
@@ -129,6 +152,15 @@ def load_comments():
     df = _clean_months(df)
     print(f"Loaded {len(df):,} comments ({df['author'].nunique():,} authors) from {TREATMENT_COMMENTS_PARQUET}")
     return df
+
+
+# Comment bodies are large, so read them only for the pre period
+def load_comment_text():
+    df = pd.read_parquet(
+        TREATMENT_COMMENTS_PARQUET, columns=["author", "months_from_birth", "body"],
+        filters=[("months_from_birth", ">=", PRE_RANGE[0]), ("months_from_birth", "<=", PRE_RANGE[-1])],
+    )
+    return text_medians(_clean_months(df), COMMENT_TEXT)
 
 
 # Earliest activity per author across BOTH sources, restricted to the submissions
@@ -197,17 +229,20 @@ def author_features(births, sub_df, com_df, authors):
     return out[AUTHOR_COLUMNS]
 
 
-def type_matrix(base, df, authors, months):
+def type_matrix(base, df, authors, months, medians):
     out = base.copy()
     out["n_subreddits_life"] = n_distinct(subreddit_pairs(df), authors)
     out["n_subreddits_pre"]  = n_distinct(subreddit_pairs(df, pre_only=True), authors)
     out = pd.concat([out, volume(df, authors, months), volume(df[df["is_des"]], authors, months, "des_")], axis=1)
+    for name in medians.columns:
+        out[name] = medians[name].reindex(authors).to_numpy()
     return out.reset_index(drop=True)
 
 
 def main():
-    sub_df, births = load_submissions()
+    sub_df, births, sub_text = load_submissions()
     com_df = load_comments()
+    com_text = load_comment_text()
 
     authors = eligible_authors(sub_df, com_df, births)
     sub_df = add_subreddit_flags(sub_df[sub_df["author"].isin(authors)], births["designated_subreddit"])
@@ -216,11 +251,11 @@ def main():
     base = author_features(births, sub_df, com_df, authors)
     print(f"  birth_after_cutoff == 1: {int(base['birth_after_cutoff'].sum()):,}")
 
-    submissions_out = type_matrix(base, sub_df, authors, MONTH_RANGE)
+    submissions_out = type_matrix(base, sub_df, authors, MONTH_RANGE, sub_text)
     save_atomic(submissions_out, SUBMISSION_VOLUME_PATH)
     print(f"Wrote {len(submissions_out):,} authors -> {SUBMISSION_VOLUME_PATH}")
 
-    comments_out = type_matrix(base, com_df, authors, MONTH_RANGE)
+    comments_out = type_matrix(base, com_df, authors, MONTH_RANGE, com_text)
     save_atomic(comments_out, COMMENT_VOLUME_PATH)
     print(f"Wrote {len(comments_out):,} authors -> {COMMENT_VOLUME_PATH}")
 

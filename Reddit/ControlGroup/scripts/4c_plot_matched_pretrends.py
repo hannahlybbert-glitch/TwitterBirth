@@ -1,32 +1,8 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-30
-# Updated: 2026-10-02 (named matching specs)
-# Purpose: Step 4c of the Reddit control-group pipeline. Visual check of 4b's match:
-#          average monthly volume, months -18..-1 before (placebo) birth, for
-#          treatment authors vs their matched controls, with the full candidate pool
-#          for reference. Good matching = the treatment and matched-control lines
-#          overlap; the all-candidates line shows where controls started. The months
-#          the spec matched on are shaded; all 18 are always plotted.
-#
-# Matched controls are averaged over pairs, so a control used 3 times counts 3
-# times -- the same weighting the balance table in 4b uses. Treatment = matched
-# treatment authors only. No zero-activity exclusion (unlike
-# plot_candidate_volume_trends.py): the lines must cover the same authors 4b matched.
-#
-# Input:  Reddit/ControlGroup/data/4a_matching_dataset.parquet
-#         Reddit/ControlGroup/data/4_matching/<SPEC>_matched_pairs.parquet
-# Output: Reddit/ControlGroup/output/matching/<SPEC>_pretrends.png
-#         (test mode: same files with a _test suffix, each in a test/ subfolder)
-#           2x2 panels: submissions, comments, designated-subreddit submissions,
-#           designated-subreddit comments. Mean +/- 95% CI.
-#
-# Usage (from this file's directory):
-#   python 4c_plot_matched_pretrends.py --spec PRE10           # full data (or TEST = True below)
-#   python 4c_plot_matched_pretrends.py --spec PRE10 --test    # test sample
-#
-# Paths can be overridden:
-#   CONTROLGROUP_DATA_DIR    (default: repo Reddit/ControlGroup/data)
-#   CONTROLGROUP_OUTPUT_DIR  (default: repo Reddit/ControlGroup/output)
+# Updated: 2026-10-05
+# Purpose: Plot mean monthly pre-birth volume (-18..-1) for treatment vs matched controls vs all candidates -> output/matching/<SPEC>_pretrends.png
+# Controls are averaged over pairs (a control used 3 times counts 3 times); matched months are shaded.
 
 import argparse
 import os
@@ -80,7 +56,7 @@ def main():
     spec = get_spec(args.spec)
     matched_months = [m for months in spec["month_bins"] for m in months]
 
-    # Test-mode files live in a test/ subfolder of the usual folder (and keep the _test suffix).
+    # Test-mode files go in a test/ subfolder
     sub = "test" if test else ""
     dataset_path = DATA_DIR / sub / f"4a_matching_dataset{tag}.parquet"
     pairs_path   = DATA_DIR / "4_matching" / sub / f"{spec['name']}_matched_pairs{tag}.parquet"

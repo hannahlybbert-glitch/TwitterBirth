@@ -1,53 +1,12 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-30
-# Updated: 2026-10-02 (named matching specs)
-# Purpose: Step 4b of the Reddit control-group pipeline. Match each treatment author
-#          to a candidate control by weighted nearest neighbor on pre-birth features.
+# Updated: 2026-10-05
+# Purpose: Match each treatment author to a candidate control by weighted nearest neighbor, per spec in matching_specs.py (--spec NAME)
 #
-# Algorithm adapted from Karthik's create_matched_pipeline_expanded.py
-# (example_code/; docs/REDDIT_MATCHING_PIPELINE.md section 4.4), fast stage only --
-# 4a replaces his feature-building stage:
-#   1. log1p the count columns (monthly volumes, subreddit counts).
-#   2. Standardize every feature on the TREATMENT side's robust center/scale
-#      (median, IQR / 1.349; falls back to SD, then 1).
-#   3. Multiply each feature by sqrt(weight) -> Euclidean distance = weighted distance.
-#   4. Shuffle treatment authors (seeded); for each, take the nearest candidate
-#      (cKDTree) that hasn't hit max_control_reuse and is within max_match_distance.
-#      No match -> left unmatched.
-# Differences from Karthik's version: no blocking, no attachment score, no
-# attachment/directional calipers; with replacement (reuse cap) is the only mode.
-#
-# Specs (2026-10-02): which months, how they're binned, the group weights, reuse cap,
-# caliper and seed all come from a named spec in matching_specs.py (--spec NAME).
-# Every output is named after the spec so past matching methods stay side by side.
-#
-# Weights: each feature group gets a share of the total weight (shares sum to 1),
-# split evenly across the group's columns. Because the weights sum to 1,
-# match_distance reads as a typical standardized gap per feature (e.g. 0.5 = about
-# half a treatment-SD apart on average), whatever the number of features.
-#
-# Input:  Reddit/ControlGroup/data/4a_matching_dataset.parquet        (4a_build_matching_dataset.py)
-#         Reddit/ControlGroup/data/test/4a_matching_dataset_test.parquet   (TEST mode)
-# Output: Reddit/ControlGroup/data/4_matching/<SPEC>_matched_pairs.parquet
-#           one row per matched treatment author: treatment_author, control_author,
-#           match_distance, treatment_date_birth, control_date_birth. A control can
-#           appear in up to max_control_reuse rows.
-#         Reddit/ControlGroup/data/4_matching/<SPEC>_balance.csv
-#           per feature, in raw units: treated vs control means before matching (all
-#           candidates) and after (matched pairs), std_diff = (t_mean - c_mean) /
-#           treatment SD. Target |std_diff| < 0.1. Rows with group "balance_only" are
-#           reported but not matched on -- including every monthly volume column
-#           (-18..-1) the spec doesn't match on, to show balance outside the matched window.
-#         Reddit/ControlGroup/data/4_matching/<SPEC>_spec.json
-#           the resolved spec and feature weights used for this run.
-#         TEST mode writes the same files with a _test suffix, in 4_matching/test/.
-#
-# Usage (from this file's directory):
-#   python 4b_match_authors.py --spec PRE10           # full data (or TEST = True below)
-#   python 4b_match_authors.py --spec PRE10 --test    # 4a test sample (100 + 100)
-#
-# Paths can be overridden:
-#   CONTROLGROUP_DATA_DIR  (default: repo Reddit/ControlGroup/data)
+# Adapted from Karthik's create_matched_pipeline_expanded.py (example_code/):
+#   1. log1p counts, standardize on the treatment median/IQR, multiply by sqrt(weight)
+#   2. In random (seeded) order, each treatment author gets the nearest candidate under the reuse cap
+# Outputs (4_matching/): <SPEC>_matched_pairs.parquet, <SPEC>_balance.csv (target |std_diff| < 0.1), <SPEC>_spec.json
 
 import argparse
 import json
@@ -66,34 +25,35 @@ DATA_DIR = Path(os.environ.get("CONTROLGROUP_DATA_DIR", ROOT / "Reddit/ControlGr
 MATCHING_DIR = DATA_DIR / "4_matching"
 
 # ----------------------------------------------------------------
-# Configuration (everything else is per-spec -- see matching_specs.py)
+# Configuration (everything else is per-spec)
 # ----------------------------------------------------------------
 TEST = False                # True -> run on the 4a test sample (same as --test)
-NEIGHBOR_K = 200            # neighbors fetched per treatment author up front; doubles if all are used up
+NEIGHBOR_K = 200            # neighbors fetched per treatment author; doubles if all are used up
 
 ALL_PRE_MONTHS = range(-18, 0)   # monthly columns available in 4a
 
-# Monthly volume groups: group -> column prefix in 4a. Always log1p.
+# Monthly volume groups -> column prefix (always log1p)
 VOLUME_GROUPS = {
     "submissions":            "sub_",
     "comments":               "com_",
     "designated_submissions": "sub_des_",
     "designated_comments":    "com_des_",
 }
-# Other groups: group -> (columns, log1p?). Breadth counts span -18..-1 in every spec.
+# Other groups -> (columns, log1p?); breadth always covers -18..-1
 OTHER_GROUPS = {
     "subreddit_breadth": (["sub_n_subreddits_pre", "com_n_subreddits_pre", "n_subreddits_all_pre"], True),
     "account_age":       (["account_age_days"], False),
     "days_from":         (["days_from"], False),
 }
 
-# Reported in the balance table but not matched on. The _life counts include
-# post-birth activity (outcome-contaminated); birth_year checks calendar alignment
-# since there's no time blocking. Unmatched monthly columns are added per spec.
+# In the balance table but not matched on (unmatched monthly columns are added per spec)
 BALANCE_ONLY = ["sub_n_subreddits_life", "com_n_subreddits_life", "n_subreddits_all_life", "birth_year"]
 
 
-# Test-mode files live in a test/ subfolder of the usual folder (and keep the _test suffix).
+# ----------------------------------------------------------------
+# 1. Paths and spec setup
+# ----------------------------------------------------------------
+# Test-mode files go in a test/ subfolder
 def io_paths(test, spec_name):
     tag = "_test" if test else ""
     data_dir = DATA_DIR / "test" if test else DATA_DIR
@@ -107,7 +67,7 @@ def io_paths(test, spec_name):
     )
 
 
-# Windows note: see 2a_fetch_candidate_comments.py -- same transient-lock retry.
+# Retry the rename: OneDrive can briefly lock new files on Windows
 def save_atomic(df, path, max_retries=5, retry_delay=1.0):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -122,9 +82,7 @@ def save_atomic(df, path, max_retries=5, retry_delay=1.0):
             time.sleep(retry_delay * (attempt + 1))
 
 
-# Resolve a spec into matching columns. Volume groups get one column per month bin;
-# multi-month bins are new columns (sum of their months), returned in `derived`
-# (column -> source columns) for load() to build.
+# Spec -> matching columns and weights. Multi-month bins are returned in `derived` for load() to sum.
 def feature_config(spec):
     shares = spec["weights"]
     unknown = set(shares) - set(VOLUME_GROUPS) - set(OTHER_GROUPS)
@@ -155,13 +113,15 @@ def feature_config(spec):
     return list(weights), weights, log_cols, group_of, derived
 
 
-# Every monthly volume column not matched on directly (months outside the spec's
-# window, and single months inside a coarse bin) -- balance-table only.
+# Monthly columns not matched on directly (balance table only)
 def unmatched_monthly(features):
     cols = [f"{prefix}{-m}pre" for prefix in VOLUME_GROUPS.values() for m in ALL_PRE_MONTHS]
     return [c for c in cols if c not in features]
 
 
+# ----------------------------------------------------------------
+# 2. Load data
+# ----------------------------------------------------------------
 def load(path, features, derived, balance_only):
     if not path.exists():
         raise SystemExit(f"Input not found: {path}")
@@ -185,7 +145,7 @@ def load(path, features, derived, balance_only):
 
 
 # ----------------------------------------------------------------
-# Distance space (Karthik: fit_robust_standardizer / weighted_standardized_matrix)
+# 3. Distance space
 # ----------------------------------------------------------------
 def transform(df, features, log_cols):
     X = df[features].astype(float)
@@ -209,10 +169,9 @@ def weighted_points(X, center, scale, weights):
 
 
 # ----------------------------------------------------------------
-# Matching (Karthik: match_authors / nearest_unused)
+# 4. Matching
 # ----------------------------------------------------------------
-# Nearest candidate under the reuse cap, walking neighbors in distance order;
-# re-queries with double k if every fetched neighbor is used up.
+# Nearest candidate under the reuse cap (re-queries with double k if all fetched are used up)
 def nearest_available(tree, point, uses, k, first, max_reuse, max_distance):
     n = tree.n
     d_row, j_row = first
@@ -265,7 +224,7 @@ def match(treatment, candidates, features, weights, log_cols, spec):
 
 
 # ----------------------------------------------------------------
-# Diagnostics (Karthik: print_match_diagnostics / print_balance_table)
+# 5. Diagnostics
 # ----------------------------------------------------------------
 def balance_table(treatment, candidates, pairs, features, group_of, balance_only):
     cols = features + balance_only
@@ -308,6 +267,9 @@ def print_diagnostics(pairs, treatment, balance):
                  "std_diff_before", "std_diff_matched"]].to_string(index=False, float_format="%.3f"))
 
 
+# ----------------------------------------------------------------
+# 6. Main
+# ----------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="Step 4b: match treatment authors to candidate controls.")
     parser.add_argument("--spec", required=True, choices=list(SPECS), help="Matching spec (matching_specs.py).")

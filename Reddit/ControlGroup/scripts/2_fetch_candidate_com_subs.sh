@@ -1,24 +1,8 @@
 #!/bin/bash
-# Fetch candidate authors' comments AND submissions -- cluster runner (Slurm array),
-# stage 1 of 2. Run from the Reddit project root:
-#     sbatch ControlGroup/scripts/2_fetch_candidate_com_subs.sh
-#
-# One array task per monthly RC_*.zst or RS_*.zst file: each task streams its file
-# once and writes hash-bucketed chunks to
-#     Reddit/ControlGroup/data/2a_candidate_comment_chunks/chunk_RC_YYYY-MM_bNNN.parquet
-#     Reddit/ControlGroup/data/2b_candidate_submission_chunks/chunk_RS_YYYY-MM_bNNN.parquet
-# The array is comments months followed by submissions months (index < N_RC ->
-# comments, else submissions) so one submission covers both 2a and 2b.
-#
-# This is stage 1 only -- it does NOT build the per-author files. After every task
-# in this array finishes, run stage 2 (see 2_split_candidate_buckets.sh), ideally
-# chained with a dependency so it starts automatically:
+# Purpose: Step 2 stage 1 (fetch) -- one array task per RC_*/RS_*.zst month (comments first, then submissions)
+# Run from the Reddit project root, then chain stage 2:
 #     FETCH_JOBID=$(sbatch --parsable ControlGroup/scripts/2_fetch_candidate_com_subs.sh)
 #     sbatch --dependency=afterok:$FETCH_JOBID ControlGroup/scripts/2_split_candidate_buckets.sh
-#
-# A task whose month is already marked done is skipped, so a partly-finished array
-# can be resubmitted as-is (the .py doesn't self-skip in single-file mode -- see
-# 1_sample_candidate_pool.sh for the same pattern).
 
 #SBATCH --partition=standard
 #SBATCH --account=ksrini0
@@ -28,19 +12,16 @@
 #SBATCH --job-name=fetch_candidate_com_subs
 #SBATCH --output=logs/fetch_candidate_com_subs_%A_%a.out
 #SBATCH --error=logs/fetch_candidate_com_subs_%A_%a.err
-# Upper bound is deliberately generous (archive is ~230 months -> ~460 comments+
-# submissions combined) -- out-of-range tasks exit 0 cleanly. %20 caps concurrency
-# so we don't hammer the shared filesystem.
+# generous upper bound (extra tasks exit cleanly); %20 caps concurrency
 #SBATCH --array=0-500%20
 
 set -euo pipefail
 shopt -s nullglob
 
-# Full path to the TwitterBirth env's Python -- don't rely on module/conda PATH
-# ordering in a non-interactive batch shell.
+# Full path -- module/conda PATH is unreliable in batch jobs
 PYTHON=/home/hlybbert/.conda/envs/TwitterBirth/bin/python3
 
-# Cluster data layout (read by the .py via os.environ.get with repo-relative fallbacks).
+# Cluster paths
 export REDDIT_COMMENTS_DIR=/nfs/turbo/si-ksrini/Reddit/raw/comments
 export REDDIT_SUBMISSIONS_DIR=/nfs/turbo/si-ksrini/Reddit/raw/submissions
 export CONTROLGROUP_DATA_DIR=/nfs/turbo/si-ksrini/Reddit/ControlGroup/data
@@ -71,6 +52,7 @@ else
     CHUNK_DIR="$CONTROLGROUP_DATA_DIR/2b_candidate_submission_chunks"
 fi
 
+# Skip months already done
 MONTH="$(basename "$F" .zst | sed "s/^${PREFIX}_//")"
 MARKER="$CHUNK_DIR/.done_$MONTH"
 if [ -f "$MARKER" ]; then

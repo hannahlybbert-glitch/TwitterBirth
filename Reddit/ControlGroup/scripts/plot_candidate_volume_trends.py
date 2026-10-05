@@ -1,23 +1,6 @@
 # Author: Hannah Lybbert
-# Created: 2026-09-18
-# Purpose: Plot average pre-seed monthly volume (comments, submissions) for
-#          eligible candidate authors from 3_build_monthly_activity_matrix.py.
-#          Mirrors the style of scripts/py/analysis/volume/volume_analysis.py
-#          (the main treatment-group volume plot).
-#
-# "No comments/submissions ever" = zero across all 18 pre-seed columns in that
-# author's row (3a/3b already zero-fill missing months, so this reads directly
-# off the volume matrix -- it does not check for activity outside the pre-seed
-# window). Such authors are excluded from that type's average per Hannah,
-# 2026-09-18, so a large block of structural non-users doesn't drag the mean down.
-#
-# Input:  Reddit/ControlGroup/data/3a_candidate_comment_volume.parquet
-#         Reddit/ControlGroup/data/3b_candidate_submission_volume.parquet
-# Output: Reddit/ControlGroup/output/3_volume_candidate_authors/candidate_comments.png
-#         Reddit/ControlGroup/output/3_volume_candidate_authors/candidate_submissions.png
-#
-# Paths can be overridden:
-#   CONTROLGROUP_DATA_DIR  (default: repo Reddit/ControlGroup/data)
+# Updated: 2026-10-05
+# Purpose: Plot average pre-birth monthly comment and submission volume for candidate authors (excludes authors with zero activity of that type)
 
 import os
 from pathlib import Path

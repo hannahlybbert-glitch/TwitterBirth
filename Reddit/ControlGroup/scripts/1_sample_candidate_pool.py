@@ -1,5 +1,6 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-02
+# Updated: 2026-10-05
 # Purpose: Pull 100,000 posts from unique authors not in our treatment author list Reddit/data/final/treatment_authors.csv
 #          and save their author id, submission id, and data of submission into a 3X100,000 dataframe
 # Input: Reddit/raw/submissions/ and Reddit/final/treatment_authors.csv
@@ -38,53 +39,6 @@ Final dataframe will be 3 columns: author, id, created_utc
 
 '''
 
-# ======================================================================================
-# IMPLEMENTATION
-# ======================================================================================
-# Step 1 of the Reddit control-group matching pipeline. Draw a calendar-month stratified
-# random pool of ~100k candidate control authors from the monthly Reddit *submissions*
-# dumps, with one "seed" submission recorded per author. Each month's quota is that
-# month's share of treatment birth posts (date_birth_dist_full.csv, scaled to 100,000,
-# floor of 10, round-half-up), so the pool's seed-date distribution matches the
-# treatment sample's birth-date distribution. Nominal total = 100,019.
-#
-# Sampling is per-AUTHOR uniform, not per-post: within a month we collapse to distinct
-# eligible authors, keep one uniformly-random submission each (reservoir sampling, k=1),
-# then draw that month's quota of authors without replacement. Months are processed independently. 
-#
-# Excluded from the pool: rows with no author / no id / no parseable created_utc, author
-# in {[deleted], [removed], [unknown], AutoModerator}, and any author in
-# treatment_authors.csv (re-checked at combine time against the current list, not just
-# at draw time).
-#
-# Input:   Reddit/raw/submissions/RS_YYYY-MM.zst              (monthly NDJSON dumps)
-#          Reddit/data/final/treatment_authors.csv            (author column -> exclude)
-#          Reddit/data/descriptives/date_birth_dist_full.csv  (year_month, share_of_birth_posts)
-#
-# Output:  Reddit/ControlGroup/data/1_candidate_pool_chunks/chunk_RS_YYYY-MM.parquet
-#            per-month, resumable; columns: author, id, created_utc, seed_month, subreddit
-#          Reddit/ControlGroup/data/1_candidate_pool.parquet
-#            the deliverable: one row per candidate author, same columns
-#          Reddit/data/all_authors/YYYY-MM_RS_authors.parquet
-#            per-month, resumable; every unique non-placeholder author seen that month
-#            (candidates AND treatment authors). Columns: author, is_treatment,
-#            seed_month. "Unique" is scoped to the month -- an author active across
-#            several months appears in several of these files.
-#
-# Usage (from this file's directory, Reddit/ControlGroup/scripts/):
-#   python 1_sample_candidate_pool.py                 # loop every required month, then combine
-#   python 1_sample_candidate_pool.py RS_2015-03.zst  # one month only (Slurm array shape); no combine
-#   python 1_sample_candidate_pool.py --combine-only  # rebuild 1_candidate_pool.parquet from chunks
-#   python 1_sample_candidate_pool.py --allow-missing-months   # local testing with a partial archive
-#
-# Paths: the raw dumps sit at a different layout on the cluster, so the submissions dir /
-#        treatment csv / birth-dist csv / output dirs can each be overridden:
-#          REDDIT_SUBMISSIONS_DIR   dir holding RS_YYYY-MM.zst   (default: repo Reddit/raw/submissions)
-#          TREATMENT_AUTHORS_CSV    treatment_authors.csv        (default: repo Reddit/data/final/...)
-#          BIRTH_DATE_DIST_CSV      date_birth_dist_full.csv      (default: repo Reddit/data/descriptives/...)
-#          CONTROLGROUP_DATA_DIR    candidate pool output dir     (default: repo Reddit/ControlGroup/data)
-#          ALL_AUTHORS_DIR          all-authors output dir        (default: repo Reddit/data/all_authors)
-
 import argparse
 import io
 import json
@@ -117,8 +71,7 @@ MAX_WINDOW = 2 ** 31       # some dumps use zstd windows > the library default (
 FNAME_RE   = re.compile(r"RS_(\d{4})-(\d{2})\.zst$")
 CHUNK_RE   = re.compile(r"chunk_RS_(\d{4}-\d{2})\.parquet$")
 
-# Authors that are never real people. [deleted]/[removed]/[unknown] are Reddit's
-# own placeholders; AutoModerator is the site-wide bot. Kept deliberately small.
+# Placeholder / bot authors
 EXCLUDE_AUTHORS = {"[deleted]", "[removed]", "[unknown]", "AutoModerator"}
 
 OUT_COLUMNS = ["author", "id", "created_utc", "seed_month", "subreddit"]
@@ -126,10 +79,9 @@ ALL_AUTHORS_COLUMNS = ["author", "is_treatment", "seed_month"]
 
 
 # ----------------------------------------------------------------
-# Stream-decode a .zst NDJSON dump one record at a time (never hold a whole
-# multi-GB month in memory). Same shape as the ProcessReddit profilers and
-# data_prep/comments/pair_authors_comments.py.
+# 1. Helpers
 # ----------------------------------------------------------------
+# Stream a .zst NDJSON dump one record at a time
 def iter_records(path):
     with open(path, "rb") as fh:
         dctx = zstd.ZstdDecompressor(max_window_size=MAX_WINDOW)
@@ -141,10 +93,7 @@ def iter_records(path):
                     yield line
 
 
-# ----------------------------------------------------------------
-# created_utc is int/float in some monthly dumps and a string in others
-# (confirmed on the 2012-12 dumps). Coerce instead of isinstance-checking.
-# ----------------------------------------------------------------
+# created_utc is a number in some dumps and a string in others
 def to_epoch(v):
     if isinstance(v, bool):
         return None
@@ -159,10 +108,9 @@ def to_epoch(v):
 
 
 # ----------------------------------------------------------------
-# Per-month author quota: that month's share of treatment birth posts, scaled
-# to TARGET_N, with a floor of MIN_QUOTA. Explicit round-half-up (Python's
-# built-in round() is banker's rounding).
+# 2. Monthly quotas and treatment exclusion list
 # ----------------------------------------------------------------
+# share * TARGET_N, floor of MIN_QUOTA, round half up (built-in round() is banker's rounding)
 def month_quota(share):
     raw = share * TARGET_N
     if raw < MIN_QUOTA:
@@ -192,16 +140,10 @@ def load_treatment_authors():
 
 
 # ----------------------------------------------------------------
-# One streaming pass over a month: collapse to distinct eligible (non-treatment)
-# authors, keeping one uniformly-random submission per author via reservoir
-# sampling (Algorithm R, k=1), then draw `quota` authors without replacement.
-# Along the way, every non-placeholder author encountered -- candidates AND
-# treatment authors -- is recorded (just the name, no rng involved) for the
-# all_authors output. This side-channel doesn't touch `rng`, so a month already
-# chunked by an earlier version of this script reproduces byte-for-byte.
-#
-# Returns a DataFrame of the drawn candidate authors' seed submissions.
+# 3. Sample one month
 # ----------------------------------------------------------------
+# One random submission per eligible author (reservoir sampling), then draw `quota` authors.
+# Also records every author seen that month for the all_authors output.
 def process_file(path, seed_month, quota, treatment, rng):
     reservoir  = {}   # author -> [id, created_utc_epoch, subreddit]  (non-treatment only)
     seen_count = {}   # author -> eligible rows seen so far this month (non-treatment only)
@@ -238,9 +180,7 @@ def process_file(path, seed_month, quota, treatment, rng):
 
         c = seen_count.get(author, 0) + 1
         seen_count[author] = c
-        # the c-th eligible row for this author replaces the stored one with
-        # probability 1/c, so every one of the author's rows is equally likely
-        # to end up as their seed submission.
+        # replace with prob 1/c -> each of the author's posts equally likely to be the seed
         if c == 1 or rng.random() < 1.0 / c:
             reservoir[author] = [sid, created, rec.get("subreddit")]
 
@@ -274,6 +214,8 @@ def process_file(path, seed_month, quota, treatment, rng):
 
 
 # ----------------------------------------------------------------
+# 4. Save outputs
+# ----------------------------------------------------------------
 def all_authors_path(seed_month):
     return ALL_AUTHORS_DIR / f"{seed_month}_RS_authors.parquet"
 
@@ -285,7 +227,6 @@ def save_all_authors(all_authors_seen, treatment, seed_month):
     save_atomic(df, all_authors_path(seed_month))
 
 
-# ----------------------------------------------------------------
 def save_atomic(df, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -315,9 +256,7 @@ def run_one(path, quota_table, treatment, seed):
 
 
 # ----------------------------------------------------------------
-# Concatenate the per-month chunks, drop authors drawn in more than one month
-# (keep a random one, reproducibly via a seeded shuffle), and write the
-# deliverable. Reports realized vs. target counts per month.
+# 5. Combine monthly chunks (drop cross-month duplicates and current treatment authors)
 # ----------------------------------------------------------------
 def combine(quota_table, seed):
     chunks = sorted(CHUNK_DIR.glob("chunk_RS_*.parquet"))
@@ -343,10 +282,7 @@ def combine(quota_table, seed):
     )
     n_after_dedup = len(combined)
 
-    # A candidate drawn from an already-processed month can later turn out to be a
-    # treatment author if treatment_authors.csv grows afterward (e.g. a birth-date
-    # cutoff expansion) -- re-check against the current list every combine, not just
-    # at draw time.
+    # re-check against the current treatment list (it can grow after months were drawn)
     treatment = load_treatment_authors()
     combined = combined[~combined["author"].isin(treatment)].reset_index(drop=True)
     n_final = len(combined)
@@ -375,6 +311,8 @@ def combine(quota_table, seed):
             print(f"    ... and {len(off) - 8} more")
 
 
+# ----------------------------------------------------------------
+# 6. Main
 # ----------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)

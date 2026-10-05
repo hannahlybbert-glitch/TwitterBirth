@@ -1,49 +1,11 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-02
-# Updated: 2026-10-01 (added body, ups, downs)
-# Purpose: For each candidate author in ControlGroup/data/1_candidate_pool.parquet, pull
-#          every comment they ever wrote from the raw comments archive.
-# Output:  One file per author: Reddit/ControlGroup/data/per_author_candidates/{author}_comments.parquet
+# Updated: 2026-10-05
+# Purpose: Pull every comment by each candidate author into per-author files (per_author_candidates/bNNN/{author}_comments.parquet)
 #
-# ======================================================================================
-# DESIGN
-# ======================================================================================
-# Candidate authors only -- treatment authors' comments already exist in
-# Reddit/data/intermediate/comments/treatment_author_comments.parquet (built by
-# data_prep/comments/pair_authors_comments.py). See scripts/py/build_treatment_volume_matrix.py,
-# which builds the treatment-side volume matrix straight from that (already-pulled) data
-# instead of re-scanning the archive here.
-#
-# This pulls FULL lifetime history (not just a window around the seed post) for 100k
-# authors, so "buffer everything, then split by author" is an unbounded memory ask.
-# Instead this is a two-stage, hash-partitioned pipeline (same idea as an external
-# merge sort), which keeps every stage's memory bounded and fully parallel:
-#
-#   Stage 1 (fetch, one Slurm array task per RC_YYYY-MM.zst -- ~154+ way parallel):
-#     Single streaming pass over the month, same as pair_authors_comments.py. Keep only
-#     comments by a candidate author, compute months_from_birth relative to that
-#     author's SEED post (from 1_candidate_pool.parquet, not a real birth), then split
-#     the month's matched rows into N_BUCKETS files by hash(author) so each bucket's
-#     data across all 154+ months can later be handled independently.
-#       Reddit/ControlGroup/data/2a_candidate_comment_chunks/chunk_RC_YYYY-MM_bNNN.parquet
-#
-#   Stage 2 (split, one Slurm array task per bucket -- N_BUCKETS-way parallel):
-#     For one bucket, concatenate that bucket's chunks across every month (~1/N_BUCKETS
-#     of the total data -- comfortably fits in memory), group by author, and write the
-#     per-author deliverables.
-#       Reddit/ControlGroup/data/per_author_candidates/{author}_comments.parquet
-#
-# Usage (from this file's directory, Reddit/ControlGroup/scripts/):
-#   python 2a_fetch_candidate_comments.py                  # loop every month, then split all buckets
-#   python 2a_fetch_candidate_comments.py RC_2015-03.zst   # one month only (Slurm array shape); no split
-#   python 2a_fetch_candidate_comments.py --split-only     # (re)build per-author files from existing chunks
-#   python 2a_fetch_candidate_comments.py --split-only --bucket 7   # one bucket only (Slurm array shape)
-#   python 2a_fetch_candidate_comments.py --no-split       # process all months, skip the split stage
-#
-# Paths: raw dumps sit at a different layout on the cluster, so these can be overridden:
-#   REDDIT_COMMENTS_DIR    dir holding RC_YYYY-MM.zst        (default: repo Reddit/raw/comments)
-#   CONTROLGROUP_DATA_DIR  ControlGroup data dir (candidate pool lives here, chunks/output written here)
-#                          (default: repo Reddit/ControlGroup/data)
+# Two stages so memory stays bounded:
+#   fetch: one task per month -> rows split into N_BUCKETS chunk files by hash(author)
+#   split: one task per bucket -> combine that bucket's chunks, write one file per author
 
 import argparse
 import io
@@ -69,23 +31,18 @@ PER_AUTHOR_DIR         = DATA_DIR / "per_author_candidates"
 MAX_WINDOW = 2 ** 31          # some dumps use zstd windows > the library default (2**27)
 FNAME_RE   = re.compile(r"RC_(\d{4}-\d{2})\.zst$")
 
-N_BUCKETS = 64   # ~1,500 candidate authors/bucket at 100k -- keeps stage 2 memory bounded
+N_BUCKETS = 64   # ~1,500 authors per bucket
 
-# Schema: this is the only pass over the raw archive for candidates, so anything left
-# out here is gone unless re-fetched later. body added 2026-10-01 (text summaries for
-# matching), flattened the same way as the treatment side (pair_authors_comments.py).
-# ups/downs: Reddit stopped exposing real downvotes ~2014, so after that downs is ~0
-# and ups ~= score; score is the main popularity measure. subreddit is tracked by NAME
-# only (no subreddit_id) to match the treatment-side schema.
+# downs is ~0 after 2014 (Reddit stopped exposing downvotes); score is the popularity measure
 OUT_COLUMNS    = ["author", "id", "created_utc", "months_from_birth", "subreddit", "score", "ups", "downs", "body"]
 INT_COLUMNS    = ["created_utc", "months_from_birth", "score", "ups", "downs"]
 STRING_COLUMNS = [c for c in OUT_COLUMNS if c not in INT_COLUMNS]
 
 
 # ----------------------------------------------------------------
-# Stream-decode a .zst NDJSON dump one record at a time (never hold the whole
-# multi-GB month in memory). Same shape as pair_authors_comments.py.
+# 1. Helpers
 # ----------------------------------------------------------------
+# Stream a .zst NDJSON dump one record at a time
 def iter_records(path):
     with open(path, "rb") as fh:
         dctx = zstd.ZstdDecompressor(max_window_size=MAX_WINDOW)
@@ -97,11 +54,7 @@ def iter_records(path):
                     yield line
 
 
-# ----------------------------------------------------------------
-# created_utc is int/float in some monthly dumps and a string in others
-# (confirmed on RC_2012-12). Coerce instead of isinstance-checking. Also used
-# for score/ups/downs.
-# ----------------------------------------------------------------
+# Numeric fields are numbers in some dumps and strings in others
 def to_int(v):
     if isinstance(v, bool):
         return None
@@ -116,7 +69,7 @@ def to_int(v):
 
 
 def flatten(text):
-    """Collapse newlines/tabs in a comment body -- same as pair_authors_comments.py."""
+    """Collapse newlines/tabs (same as the treatment side)."""
     if not isinstance(text, str):
         return None
     return text.replace("\r", " ").replace("\n", " ").replace("\t", " ")
@@ -127,12 +80,9 @@ def bucket_of(author):
 
 
 # ----------------------------------------------------------------
-# Load candidate authors -> seed created_utc (their step-1 seed submission epoch).
-# months_from_birth is computed relative to this seed date, not a real birth --
-# it's the candidate-side anchor the issue's design calls "months_from_birth" for
-# consistency with the treatment pipeline's naming, even though the reference
-# point differs.
+# 2. Stage 1: fetch one month
 # ----------------------------------------------------------------
+# author -> seed post epoch (months_from_birth here is relative to the seed post; step 3 recomputes it)
 def load_candidates():
     if not CANDIDATE_POOL_PARQUET.exists():
         raise SystemExit(
@@ -145,10 +95,7 @@ def load_candidates():
     return seed_epoch
 
 
-# ----------------------------------------------------------------
-# One streaming pass over a single month's file. Returns a DataFrame of every
-# comment written by a candidate author that month.
-# ----------------------------------------------------------------
+# Every comment by a candidate author in one month
 def process_file(path, seed_epoch):
     rows = []
     n_seen = n_bad = 0
@@ -165,13 +112,13 @@ def process_file(path, seed_epoch):
             print(f"[{path.stem}]   ... {n_seen:,} rows, {len(rows):,} kept", flush=True)
 
         author = rec.get("author")
-        if author not in seed_epoch:          # O(1) set-style membership; also skips [deleted]/[removed]
+        if author not in seed_epoch:
             continue
 
         created = to_int(rec.get("created_utc"))
         seed = seed_epoch[author]
         if created is not None:
-            months_from_birth = ((created - seed) // 86_400) // 30   # floor div, matches pipeline convention
+            months_from_birth = ((created - seed) // 86_400) // 30
         else:
             months_from_birth = None
 
@@ -201,12 +148,7 @@ def process_file(path, seed_epoch):
     return df
 
 
-# ----------------------------------------------------------------
-# Windows note: writing this many small files fast inside a synced OneDrive folder
-# can trip a transient "PermissionError: Access is denied" on the rename, when
-# OneDrive's sync engine (or AV scanning) briefly holds a lock on the just-written
-# file. Retry with a short linear backoff rather than crashing the whole run over
-# what's usually a sub-second hiccup; still raises if it's a real, persistent problem.
+# Retry the rename: OneDrive can briefly lock new files on Windows
 def save_atomic(df, path, max_retries=5, retry_delay=1.0):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -233,10 +175,7 @@ def bucket_marker(b):
     return CHUNK_DIR / f".split_done_b{b:03d}"
 
 
-# ----------------------------------------------------------------
-# Split a month's matched rows into N_BUCKETS chunk files by hash(author).
-# Skips buckets with zero rows for this month (most buckets in sparse/early months).
-# ----------------------------------------------------------------
+# Split a month's rows into chunk files by hash(author)
 def write_month_buckets(df, month):
     df = df.copy()
     df["_bucket"] = df["author"].map(bucket_of)
@@ -256,8 +195,7 @@ def run_one(path, seed_epoch):
 
 
 # ----------------------------------------------------------------
-# Stage 2: for one bucket, concatenate its chunks across every month and write the
-# per-author deliverables. Bounded to ~1/N_BUCKETS of the total data.
+# 3. Stage 2: split one bucket into per-author files
 # ----------------------------------------------------------------
 def split_bucket(b):
     chunks = sorted(CHUNK_DIR.glob(f"chunk_RC_*_b{b:03d}.parquet"))
@@ -265,10 +203,7 @@ def split_bucket(b):
         return 0
     combined = pd.concat([pd.read_parquet(c) for c in chunks], ignore_index=True)
     n_authors = 0
-    # One subfolder per bucket -- a flat ~200k-file directory chokes OnDemand's
-    # web file browser with proxy timeouts (confirmed 2026-09-18), even though
-    # the filesystem itself handles it fine. See reorganize_per_author_candidates.py
-    # for files written before this existed.
+    # subfolder per bucket -- one flat ~200k-file folder times out the OnDemand file browser
     bucket_dir = PER_AUTHOR_DIR / f"b{b:03d}"
     bucket_dir.mkdir(parents=True, exist_ok=True)
     for author, part in combined.groupby("author"):
@@ -291,6 +226,8 @@ def split_all():
     print(f"\nSplit complete: {total_authors:,} candidate authors' comment files written to {PER_AUTHOR_DIR}")
 
 
+# ----------------------------------------------------------------
+# 4. Main
 # ----------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
