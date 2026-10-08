@@ -31,7 +31,8 @@
 #     18pre..1pre, 0post..17post           (all activity)
 #     des_18pre..des_1pre, des_0post..des_17post   (designated subreddit only)
 #     median_body_chars (comments) / median_title_chars, median_selftext_chars (submissions):
-#       median length over -18..-1, excluding empty and [deleted]/[removed]; NaN if none
+#       median length over -18..-1, plus _18to10pre/_9to7pre/_6to4pre/_3to1pre windows,
+#       excluding empty and [deleted]/[removed]; NaN if none
 #
 # Usage:
 #   python build_treatment_volume_matrix.py
@@ -61,6 +62,15 @@ PRE_RANGE   = list(range(-18, 0))      # months_from_birth -18..-1
 COMMENT_TEXT    = {"body": "median_body_chars"}
 SUBMISSION_TEXT = {"title": "median_title_chars", "selftext": "median_selftext_chars"}
 REMOVED_TEXT    = {"[deleted]", "[removed]"}
+
+# Column suffix -> months the median is taken over (same as step 3)
+TEXT_WINDOWS = {
+    "":           range(-18, 0),
+    "_18to10pre": range(-18, -9),
+    "_9to7pre":   range(-9, -6),
+    "_6to4pre":   range(-6, -3),
+    "_3to1pre":   range(-3, 0),
+}
 
 # Same cutoff as build_analysis_ready_file.py. Flag only -- never dropped here.
 BIRTH_CUTOFF = pd.Timestamp("2024-07-01")
@@ -103,10 +113,14 @@ def char_length(text):
     return n.where(keep).astype("float")
 
 
-# Median character length per author over PRE_RANGE, one column per text field
+# Median character length per author, one column per text field x window
 def text_medians(df, text):
-    pre = df[df["months_from_birth"].isin(PRE_RANGE)]
-    return pd.DataFrame({name: char_length(pre[src]).groupby(pre["author"]).median() for src, name in text.items()})
+    cols = {}
+    for src, name in text.items():
+        for suffix, window in TEXT_WINDOWS.items():
+            w = df[df["months_from_birth"].isin(window)]
+            cols[f"{name}{suffix}"] = char_length(w[src]).groupby(w["author"]).median()
+    return pd.DataFrame(cols)
 
 
 def _clean_months(df):

@@ -1,8 +1,8 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-02
-# Updated: 2026-10-05
-# Purpose: Pull 100,000 posts from unique authors not in our treatment author list Reddit/data/final/treatment_authors.csv
-#          and save their author id, submission id, and data of submission into a 3X100,000 dataframe
+# Updated: 2026-10-06
+# Purpose: Pull 400,000 posts from unique authors not in our treatment author list Reddit/data/final/treatment_authors.csv
+#          and save their author id, submission id, and data of submission into a 3X400,000 dataframe
 # Input: Reddit/raw/submissions/ and Reddit/final/treatment_authors.csv
 # Output: Reddit/ControlGroup/data/1_candidate_pool.parquet
 
@@ -64,7 +64,7 @@ CHUNK_DIR     = DATA_DIR / "1_candidate_pool_chunks"
 COMBINED_PATH = DATA_DIR / "1_candidate_pool.parquet"
 
 DEFAULT_SEED = 20260902
-TARGET_N     = 100_000     # nominal pool size the monthly shares are scaled to
+TARGET_N     = 400_000     # updated to 400k candidate authors on 10/6/2026
 MIN_QUOTA    = 10          # months whose scaled share rounds below this are bumped up to it
 
 MAX_WINDOW = 2 ** 31       # some dumps use zstd windows > the library default (2**27)
@@ -190,14 +190,16 @@ def process_file(path, seed_month, quota, treatment, rng):
 
     n_eligible = len(reservoir)
 
+    # Short month: take every eligible author and note the shortfall
     if n_eligible < quota:
-        raise SystemExit(
-            f"[{seed_month}] only {n_eligible:,} eligible authors but quota is {quota:,}; "
-            f"cannot fill this stratum."
+        print(
+            f"[{seed_month}] Note: cannot fill this stratum. {n_eligible:,} unique authors pulled "
+            f"from this month, short by {quota - n_eligible:,} authors (quota {quota:,})",
+            flush=True,
         )
 
     authors = np.array(list(reservoir.keys()), dtype=object)
-    chosen = rng.choice(authors, size=quota, replace=False)
+    chosen = rng.choice(authors, size=min(quota, n_eligible), replace=False)
 
     df = pd.DataFrame(
         [(a, reservoir[a][0], reservoir[a][1], seed_month, reservoir[a][2]) for a in chosen],

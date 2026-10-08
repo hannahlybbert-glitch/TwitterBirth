@@ -1,6 +1,6 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-02
-# Updated: 2026-10-05
+# Updated: 2026-10-06
 # Purpose: Pull every comment by each candidate author into per-author files (per_author_candidates/bNNN/{author}_comments.parquet)
 #
 # Two stages so memory stays bounded:
@@ -31,7 +31,7 @@ PER_AUTHOR_DIR         = DATA_DIR / "per_author_candidates"
 MAX_WINDOW = 2 ** 31          # some dumps use zstd windows > the library default (2**27)
 FNAME_RE   = re.compile(r"RC_(\d{4}-\d{2})\.zst$")
 
-N_BUCKETS = 64   # ~1,500 authors per bucket
+N_BUCKETS = 256   # ~1,560 authors per bucket (increased from 63 on 10/6/2026 to scale with 400k candidate authors)
 
 # downs is ~0 after 2014 (Reddit stopped exposing downvotes); score is the popularity measure
 OUT_COLUMNS    = ["author", "id", "created_utc", "months_from_birth", "subreddit", "score", "ups", "downs", "body"]

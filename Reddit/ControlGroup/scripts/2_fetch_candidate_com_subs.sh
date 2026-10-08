@@ -7,7 +7,7 @@
 #SBATCH --partition=standard
 #SBATCH --account=ksrini0
 #SBATCH --time=05:00:00
-#SBATCH --mem=8G
+#SBATCH --mem=36G
 #SBATCH --cpus-per-task=1
 #SBATCH --job-name=fetch_candidate_com_subs
 #SBATCH --output=logs/fetch_candidate_com_subs_%A_%a.out

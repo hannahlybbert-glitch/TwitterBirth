@@ -1,10 +1,10 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-30
-# Updated: 2026-10-05
+# Updated: 2026-10-07
 # Purpose: Match each treatment author to a candidate control by weighted nearest neighbor, per spec in matching_specs.py (--spec NAME)
 #
 # Adapted from Karthik's create_matched_pipeline_expanded.py (example_code/):
-#   1. log1p counts, standardize on the treatment median/IQR, multiply by sqrt(weight)
+#   1. log1p counts, standardize on the treatment median/IQR (missing text length -> treatment median), multiply by sqrt(weight)
 #   2. In random (seeded) order, each treatment author gets the nearest candidate under the reuse cap
 # Outputs (4_matching/): <SPEC>_matched_pairs.parquet, <SPEC>_balance.csv (target |std_diff| < 0.1), <SPEC>_spec.json
 
@@ -39,14 +39,22 @@ VOLUME_GROUPS = {
     "designated_submissions": "sub_des_",
     "designated_comments":    "com_des_",
 }
-# Other groups -> (columns, log1p?); breadth always covers -18..-1
+# Other groups -> (columns, log1p?); breadth and text length cover -18..-1
 OTHER_GROUPS = {
     "subreddit_breadth": (["sub_n_subreddits_pre", "com_n_subreddits_pre", "n_subreddits_all_pre"], True),
     "account_age":       (["account_age_days"], False),
     "days_from":         (["days_from"], False),
+    "comment_length":    (["com_median_body_chars"], True),
+    "submission_length": (["sub_median_title_chars", "sub_median_selftext_chars"], True),
 }
 
-# In the balance table but not matched on (unmatched monthly columns are added per spec)
+# Text-length columns from step 3 (NaN = no text in that window). Missing values are
+# filled with the treatment median when matched on; all of them are reported in the balance table.
+TEXT_COLUMNS = [f"{col}{suffix}"
+                for col in ["com_median_body_chars", "sub_median_title_chars", "sub_median_selftext_chars"]
+                for suffix in ["", "_18to10pre", "_9to7pre", "_6to4pre", "_3to1pre"]]
+
+# In the balance table but not matched on (unmatched monthly and text columns are added per spec)
 BALANCE_ONLY = ["sub_n_subreddits_life", "com_n_subreddits_life", "n_subreddits_all_life", "birth_year"]
 
 
@@ -133,7 +141,7 @@ def load(path, features, derived, balance_only):
     missing = [c for c in features + balance_only if c not in df.columns]
     if missing:
         raise SystemExit(f"Columns missing from {path.name}: {missing}")
-    has_nan = [c for c in features if df[c].isna().any()]
+    has_nan = [c for c in features if c not in TEXT_COLUMNS and df[c].isna().any()]
     if has_nan:
         raise SystemExit(f"Matching features with missing values: {has_nan}")
 
@@ -190,7 +198,13 @@ def nearest_available(tree, point, uses, k, first, max_reuse, max_distance):
 def match(treatment, candidates, features, weights, log_cols, spec):
     t_X = transform(treatment, features, log_cols)
     c_X = transform(candidates, features, log_cols)
-    center, scale = fit_robust_standardizer(t_X)
+    center, scale = fit_robust_standardizer(t_X)   # fit on non-missing values
+
+    # Missing text length -> treatment median (adds zero distance on that column)
+    if center.isna().any():
+        raise SystemExit(f"No treatment values for: {list(center[center.isna()].index)}")
+    t_X, c_X = t_X.fillna(center), c_X.fillna(center)
+
     t_points = weighted_points(t_X, center, scale, weights)
     c_points = weighted_points(c_X, center, scale, weights)
 
@@ -280,7 +294,9 @@ def main():
 
     input_path, pairs_path, balance_path, spec_path = io_paths(test, spec["name"])
     features, weights, log_cols, group_of, derived = feature_config(spec)
-    balance_only = unmatched_monthly(features) + BALANCE_ONLY
+    other_cols = [c for cols, _ in OTHER_GROUPS.values() for c in cols]
+    extra = [c for c in dict.fromkeys(TEXT_COLUMNS + other_cols) if c not in features]   # dedupe, keep order
+    balance_only = unmatched_monthly(features) + extra + BALANCE_ONLY
     print(f"{'TEST MODE -- ' if test else ''}Spec: {spec['name']} | Input: {input_path}")
     print(f"{len(features)} matching features; max control reuse {spec['max_control_reuse']}; "
           f"max distance {spec['max_match_distance']}; seed {spec['seed']}")

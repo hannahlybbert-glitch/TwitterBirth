@@ -52,6 +52,17 @@ COMMENT_DOMINANT_WEIGHTS = {
     "account_age":            0.02,
 }
 
+COMMENT_DOMINANT_TEXT_WEIGHTS = {
+    "submissions":            0.03,
+    "comments":               0.40,
+    "designated_submissions": 0.03,
+    "designated_comments":    0.40,
+    "subreddit_breadth":      0.02,
+    "account_age":            0.02,
+    "comment_length":         0.06,
+    "submission_length":      0.04,
+}
+
 SPECS = {
     # Months -18..-1; all others use -10..-1 (COARSE_* = bins -1, -2..-4, -5..-7, -8..-10)
     "ORIGINAL": {
@@ -97,6 +108,14 @@ SPECS = {
     "COARSE_COM-DOM": {
         "month_bins": [[-1], [-4, -3, -2], [-7, -6, -5], [-10, -9, -8]],
         "weights": COMMENT_DOMINANT_WEIGHTS,
+    },
+    "COM-DOM_TEXT": {
+        "month_bins": monthly(-10, -1),
+        "weights": COMMENT_DOMINANT_TEXT_WEIGHTS,
+    },
+    "COARSE_COM-DOM_TEXT": {
+        "month_bins": [[-1], [-4, -3, -2], [-7, -6, -5], [-10, -9, -8]],
+        "weights": COMMENT_DOMINANT_TEXT_WEIGHTS,
     },
     # Diagnostic: comments only
     "ONLY_COM": {

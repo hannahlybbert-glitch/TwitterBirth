@@ -6,7 +6,7 @@
 # Placebo birth: date_birth = seed post date - days_from, days_from drawn from the treatment distribution
 #   (seeded per author, so reruns give the same value). months_from_birth is recomputed from it.
 # Drops authors with < 18 months of activity before the placebo birth. Missing comments/submissions -> zeros.
-# Text: median character length over -18..-1 (3a: body; 3b: title, selftext); NaN if none.
+# Text: median character length over -18..-1 and over -18..-10, -9..-7, -6..-4, -3..-1 (3a: body; 3b: title, selftext); NaN if none.
 # Same columns and logic as scripts/py/volume/build_treatment_volume_matrix.py -- keep in sync.
 
 import argparse
@@ -31,7 +31,7 @@ CHUNK_DIR              = DATA_DIR / "3_candidate_volume_chunks"
 COMMENT_VOLUME_PATH    = DATA_DIR / "3a_candidate_comment_volume.parquet"
 SUBMISSION_VOLUME_PATH = DATA_DIR / "3b_candidate_submission_volume.parquet"
 
-N_BUCKETS = 64   # must match 2a/2b
+N_BUCKETS = 256   # ~1,560 authors per bucket (increased from 63 on 10/6/2026 to scale with 400k candidate authors), matches 2a/2b
 DRAW_SEED = 20260925
 
 COMMENT_SUFFIX_RE    = re.compile(r"_comments\.parquet$")
@@ -57,8 +57,22 @@ COMMENT_TEXT    = {"body": "median_body_chars"}
 SUBMISSION_TEXT = {"title": "median_title_chars", "selftext": "median_selftext_chars"}
 REMOVED_TEXT    = {"[deleted]", "[removed]"}
 
-COMMENT_COLUMNS    = OUT_COLUMNS + list(COMMENT_TEXT.values())
-SUBMISSION_COLUMNS = OUT_COLUMNS + list(SUBMISSION_TEXT.values())
+# Column suffix -> months the median is taken over
+TEXT_WINDOWS = {
+    "":           range(-18, 0),
+    "_18to10pre": range(-18, -9),
+    "_9to7pre":   range(-9, -6),
+    "_6to4pre":   range(-6, -3),
+    "_3to1pre":   range(-3, 0),
+}
+
+
+def text_columns(text):
+    return [f"{name}{suffix}" for name in text.values() for suffix in TEXT_WINDOWS]
+
+
+COMMENT_COLUMNS    = OUT_COLUMNS + text_columns(COMMENT_TEXT)
+SUBMISSION_COLUMNS = OUT_COLUMNS + text_columns(SUBMISSION_TEXT)
 
 
 # ----------------------------------------------------------------
@@ -202,10 +216,11 @@ def type_matrix(base, df, authors, months, text):
     out["n_subreddits_pre"]  = n_distinct(subreddit_pairs(df, pre_only=True), authors)
     out = pd.concat([out, volume(df, authors, months), volume(df[df["is_des"]], authors, months, "des_")], axis=1)
 
-    # Median text length over the pre period (NaN if no text that period)
-    pre = df[df["months_from_birth"].isin(PRE_RANGE)]
-    for src, name in text.items():
-        out[name] = pre.groupby("author")[f"{src}_chars"].median().reindex(authors).to_numpy()
+    # Median text length per window (NaN if no text in that window)
+    for suffix, window in TEXT_WINDOWS.items():
+        in_window = df[df["months_from_birth"].isin(window)]
+        for src, name in text.items():
+            out[f"{name}{suffix}"] = in_window.groupby("author")[f"{src}_chars"].median().reindex(authors).to_numpy()
     return out.reset_index(drop=True)
 
 
@@ -297,10 +312,12 @@ def combine():
 
     comments = pd.concat([pd.read_parquet(c) for c in comment_chunks], ignore_index=True)
     comments = comments.sort_values("author").reset_index(drop=True)
+    comments[text_columns(COMMENT_TEXT)] = comments[text_columns(COMMENT_TEXT)].astype(float)
     save_atomic(comments, COMMENT_VOLUME_PATH)
 
     submissions = pd.concat([pd.read_parquet(c) for c in submission_chunks], ignore_index=True)
     submissions = submissions.sort_values("author").reset_index(drop=True)
+    submissions[text_columns(SUBMISSION_TEXT)] = submissions[text_columns(SUBMISSION_TEXT)].astype(float)
     save_atomic(submissions, SUBMISSION_VOLUME_PATH)
 
     print(f"Combined {len(comment_chunks)} bucket(s) -> {COMMENT_VOLUME_PATH} ({len(comments):,} authors)")

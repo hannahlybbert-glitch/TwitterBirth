@@ -24,13 +24,13 @@ export TREATMENT_AUTHORS_CSV=/nfs/turbo/si-ksrini/Reddit/data/final/treatment_au
 
 mkdir -p logs
 
-# # Step 4a: build the matching dataset
-# echo "4a: building matching dataset at: $(date)"
-# "$PYTHON" -u ControlGroup/scripts/4a_build_matching_dataset.py
+# Step 4a: build the matching dataset
+echo "4a: building matching dataset at: $(date)"
+"$PYTHON" -u ControlGroup/scripts/4a_build_matching_dataset.py
 
 # Specs to run (defined in matching_specs.py)
 SPECS=(ORIGINAL PRE10 COARSE COM-HEAVY COARSE_COM-HEAVY COM-VERY-HEAVY COARSE_COM-VERY-HEAVY
-       COM-DOM COARSE_COM-DOM ONLY_COM)
+       COM-DOM COARSE_COM-DOM COM-DOM_TEXT COARSE_COM-DOM_TEXT ONLY_COM)
 
 for SPEC in "${SPECS[@]}"; do
     # Step 4b: match treatment authors to candidate controls

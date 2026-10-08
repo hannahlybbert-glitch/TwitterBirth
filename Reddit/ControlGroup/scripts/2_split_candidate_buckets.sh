@@ -10,8 +10,8 @@
 #SBATCH --job-name=split_candidate_buckets
 #SBATCH --output=logs/split_candidate_buckets_%A_%a.out
 #SBATCH --error=logs/split_candidate_buckets_%A_%a.err
-# 0-63 must match N_BUCKETS in 2a/2b
-#SBATCH --array=0-63%16
+# 0-255 must match N_BUCKETS in 2a/2b
+#SBATCH --array=0-255%16
 
 set -euo pipefail
 

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = Path(os.environ.get("CONTROLGROUP_DATA_DIR", ROOT / "Reddit/ControlGroup/data"))
 PER_AUTHOR_DIR = DATA_DIR / "per_author_candidates"
 
-N_BUCKETS = 64   # must match 2a/2b
+N_BUCKETS = 256   # ~1,560 authors per bucket (increased from 63 on 10/6/2026 to scale with 400k candidate authors), matches 2a/2b
 
 SUFFIX_RE = re.compile(r"_(comments|submissions)\.parquet$")
 

@@ -14,8 +14,8 @@
 #SBATCH --job-name=build_candidate_volume
 #SBATCH --output=logs/build_candidate_volume_%A_%a.out
 #SBATCH --error=logs/build_candidate_volume_%A_%a.err
-# 0-63 must match N_BUCKETS
-#SBATCH --array=0-63%16
+# 0-255 must match N_BUCKETS
+#SBATCH --array=0-255%16
 
 set -euo pipefail
 
