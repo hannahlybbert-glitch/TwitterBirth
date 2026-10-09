@@ -38,6 +38,7 @@ COMMENT_SUFFIX_RE    = re.compile(r"_comments\.parquet$")
 SUBMISSION_SUFFIX_RE = re.compile(r"_submissions\.parquet$")
 
 PRE_RANGE = list(range(-18, 0))        # months_from_birth -18..-1
+BREADTH_RANGE = list(range(-10, 0))    # distinct-subreddit counts (*_n_subreddits_pre) use -10..-1
 
 # Same cutoff as build_analysis_ready_file.py (flag only here)
 BIRTH_CUTOFF = pd.Timestamp("2024-07-01")
@@ -180,7 +181,7 @@ def volume(df, authors, months, prefix=""):
 
 def subreddit_pairs(df, pre_only=False):
     if pre_only:
-        df = df[df["months_from_birth"].isin(PRE_RANGE)]
+        df = df[df["months_from_birth"].isin(BREADTH_RANGE)]
     return df[["author", "sub_lc"]].drop_duplicates()
 
 

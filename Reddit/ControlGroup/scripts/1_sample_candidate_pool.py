@@ -59,6 +59,7 @@ TREATMENT_CSV   = Path(os.environ.get("TREATMENT_AUTHORS_CSV", ROOT / "Reddit/da
 BIRTH_DIST_CSV  = Path(os.environ.get("BIRTH_DATE_DIST_CSV", ROOT / "Reddit/data/descriptives/date_birth_dist_full.csv"))
 DATA_DIR        = Path(os.environ.get("CONTROLGROUP_DATA_DIR", ROOT / "Reddit/ControlGroup/data"))
 ALL_AUTHORS_DIR = Path(os.environ.get("ALL_AUTHORS_DIR", ROOT / "Reddit/data/all_authors"))
+BIRTH_SUBS_CSV  = Path(os.environ.get("BIRTH_SUBREDDITS_CSV", ROOT / "Reddit/data/descriptives/birth_subreddits.csv"))
 
 CHUNK_DIR     = DATA_DIR / "1_candidate_pool_chunks"
 COMBINED_PATH = DATA_DIR / "1_candidate_pool.parquet"
@@ -139,12 +140,21 @@ def load_treatment_authors():
     return authors
 
 
+# Lowercased names of the 13 birth subreddits (seed posts can't come from these)
+def load_birth_subreddits():
+    if not BIRTH_SUBS_CSV.exists():
+        raise SystemExit(f"Birth subreddits file not found: {BIRTH_SUBS_CSV}")
+    subs = set(pd.read_csv(BIRTH_SUBS_CSV, usecols=["subreddit"])["subreddit"].dropna().str.lower())
+    print(f"Loaded {len(subs)} birth subreddits to exclude as seed posts from {BIRTH_SUBS_CSV}")
+    return subs
+
+
 # ----------------------------------------------------------------
 # 3. Sample one month
 # ----------------------------------------------------------------
 # One random submission per eligible author (reservoir sampling), then draw `quota` authors.
 # Also records every author seen that month for the all_authors output.
-def process_file(path, seed_month, quota, treatment, rng):
+def process_file(path, seed_month, quota, treatment, birth_subs, rng):
     reservoir  = {}   # author -> [id, created_utc_epoch, subreddit]  (non-treatment only)
     seen_count = {}   # author -> eligible rows seen so far this month (non-treatment only)
     all_authors_seen = set()   # every non-placeholder author this month (candidates + treatment)
@@ -175,6 +185,11 @@ def process_file(path, seed_month, quota, treatment, rng):
         all_authors_seen.add(author)
 
         if author in treatment:
+            n_skip += 1
+            continue
+
+        # no seed posts from birth subreddits
+        if str(rec.get("subreddit") or "").lower() in birth_subs:
             n_skip += 1
             continue
 
@@ -245,7 +260,7 @@ def month_rng(seed, seed_month):
     return np.random.default_rng([seed, int(year), int(month)])
 
 
-def run_one(path, quota_table, treatment, seed):
+def run_one(path, quota_table, treatment, birth_subs, seed):
     m = FNAME_RE.search(path.name)
     if not m:
         raise SystemExit(f"Not an RS_YYYY-MM.zst file: {path.name}")
@@ -253,7 +268,7 @@ def run_one(path, quota_table, treatment, seed):
     if seed_month not in quota_table:
         print(f"[{seed_month}] not in the quota table ({BIRTH_DIST_CSV.name}); skipping")
         return
-    df = process_file(path, seed_month, quota_table[seed_month], treatment, month_rng(seed, seed_month))
+    df = process_file(path, seed_month, quota_table[seed_month], treatment, birth_subs, month_rng(seed, seed_month))
     save_atomic(df, chunk_path(seed_month))
 
 
@@ -332,6 +347,7 @@ def main():
         return
 
     treatment = load_treatment_authors()
+    birth_subs = load_birth_subreddits()
 
     # single-file mode: Slurm array shape, one month, no combine
     if args.file:
@@ -340,7 +356,7 @@ def main():
             p = SUBMISSIONS_DIR / p.name
         if not p.exists():
             raise SystemExit(f"File not found: {p}")
-        run_one(p, quota_table, treatment, args.seed)
+        run_one(p, quota_table, treatment, birth_subs, args.seed)
         return
 
     # loop mode: every month in the quota table
@@ -362,7 +378,7 @@ def main():
         if chunk_path(ym).exists() and all_authors_path(ym).exists():
             print(f"[{ym}] chunk + all_authors exist, skipping")
             continue
-        run_one(SUBMISSIONS_DIR / f"RS_{ym}.zst", quota_table, treatment, args.seed)
+        run_one(SUBMISSIONS_DIR / f"RS_{ym}.zst", quota_table, treatment, birth_subs, args.seed)
 
     if not args.no_combine:
         combine(quota_table, args.seed)

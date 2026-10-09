@@ -1,6 +1,6 @@
 # Author: Hannah Lybbert
 # Created: 2026-09-25
-# Updated: 2026-10-05
+# Updated: 2026-10-08
 # Purpose: Stack treatment and candidate authors into one matching dataset (sub_/com_ prefixed columns, treated = 1/0), plus a 100+100 test sample
 
 import os
@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR        = Path(os.environ.get("CONTROLGROUP_DATA_DIR", ROOT / "Reddit/ControlGroup/data"))
 VOLUME_DATA_DIR = Path(os.environ.get("VOLUME_DATA_DIR", ROOT / "Reddit/data/volume"))
 TREATMENT_AUTHORS_CSV = Path(os.environ.get("TREATMENT_AUTHORS_CSV", ROOT / "Reddit/data/final/treatment_authors.csv"))
+BIRTH_SUBS_CSV        = Path(os.environ.get("BIRTH_SUBREDDITS_CSV", ROOT / "Reddit/data/descriptives/birth_subreddits.csv"))
 
 TREATMENT_SUBMISSIONS = VOLUME_DATA_DIR / "treatment_submission_volume.parquet"
 TREATMENT_COMMENTS    = VOLUME_DATA_DIR / "treatment_comment_volume.parquet"
@@ -62,6 +63,13 @@ def read_treatment_authors():
     return pd.read_csv(TREATMENT_AUTHORS_CSV, usecols=["author"])["author"].dropna()
 
 
+# Lowercased names of the 13 birth subreddits
+def read_birth_subreddits():
+    if not BIRTH_SUBS_CSV.exists():
+        raise SystemExit(f"Birth subreddits file not found: {BIRTH_SUBS_CSV}")
+    return set(pd.read_csv(BIRTH_SUBS_CSV, usecols=["subreddit"])["subreddit"].dropna().str.lower())
+
+
 # Author-level columns once, then type-specific columns with sub_ / com_ prefix
 def join_types(sub, com, treated):
     if set(sub["author"]) != set(com["author"]):
@@ -86,6 +94,11 @@ def main():
     if overlap:
         candidates = candidates[~candidates["author"].isin(overlap)]
         print(f"Dropped {len(overlap):,} candidate(s) who are also treatment authors, e.g. {sorted(overlap)[:5]}")
+
+    # Drop candidates whose seed (placebo birth) post is in a birth subreddit
+    in_birth_sub = candidates["designated_subreddit"].str.lower().isin(read_birth_subreddits())
+    print(f"Dropped {int(in_birth_sub.sum()):,} candidate(s) whose placebo birth post is in a birth subreddit")
+    candidates = candidates[~in_birth_sub]
 
     # Drop births after the cutoff (treatment count should be 0)
     for label, group in [("treatment", treatment), ("candidate", candidates)]:

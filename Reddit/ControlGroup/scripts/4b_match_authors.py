@@ -39,7 +39,7 @@ VOLUME_GROUPS = {
     "designated_submissions": "sub_des_",
     "designated_comments":    "com_des_",
 }
-# Other groups -> (columns, log1p?); breadth and text length cover -18..-1
+# Other groups -> (columns, log1p?); breadth covers -10..-1, text length -18..-1
 OTHER_GROUPS = {
     "subreddit_breadth": (["sub_n_subreddits_pre", "com_n_subreddits_pre", "n_subreddits_all_pre"], True),
     "account_age":       (["account_age_days"], False),
@@ -100,6 +100,13 @@ def feature_config(spec):
     if not np.isclose(total, 1.0):
         raise SystemExit(f"Spec '{spec['name']}' weights must sum to 1; got {total:.4f}")
 
+    # Optional uneven split of each volume group's weight across month bins (default: even)
+    n_bins = len(spec["month_bins"])
+    bin_weights = np.array(spec.get("bin_weights", [1.0] * n_bins), dtype=float)
+    if len(bin_weights) != n_bins:
+        raise SystemExit(f"Spec '{spec['name']}': bin_weights has {len(bin_weights)} entries, month_bins has {n_bins}")
+    bin_weights = bin_weights / bin_weights.sum()
+
     weights, log_cols, group_of, derived = {}, [], {}, {}
     for group, share in shares.items():
         if group in VOLUME_GROUPS:
@@ -110,11 +117,13 @@ def feature_config(spec):
                 if len(months) > 1:
                     derived[col] = [f"{prefix}{-m}pre" for m in months]
                 cols.append(col)
+            col_shares = share * bin_weights
             use_log = True
         else:
             cols, use_log = OTHER_GROUPS[group]
-        for col in cols:
-            weights[col] = share / len(cols)
+            col_shares = [share / len(cols)] * len(cols)
+        for col, w in zip(cols, col_shares):
+            weights[col] = float(w)
             group_of[col] = group
         if use_log:
             log_cols.extend(cols)

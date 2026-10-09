@@ -5,6 +5,7 @@
 #
 # month_bins: months matched on; a multi-month bin is the sum of its months. A group's weight is split evenly across bins.
 # weights: share per feature group, must sum to 1. Leave a group out to not match on it.
+# bin_weights (optional): relative weight of each month bin within every volume group (default: even).
 
 def monthly(first, last):
     return [[m] for m in range(first, last + 1)]
@@ -116,6 +117,19 @@ SPECS = {
     "COARSE_COM-DOM_TEXT": {
         "month_bins": [[-1], [-4, -3, -2], [-7, -6, -5], [-10, -9, -8]],
         "weights": COMMENT_DOMINANT_TEXT_WEIGHTS,
+    },
+    # 75% of each volume group's weight on -3..-1, 25% on -10..-4
+    "LATE-HEAVY": {
+        "month_bins": monthly(-10, -1),
+        "bin_weights": [0.25 / 7] * 7 + [0.75 / 3] * 3,
+        "weights": {
+            "submissions":            0.08,
+            "comments":               0.40,
+            "designated_submissions": 0.08,
+            "designated_comments":    0.40,
+            "subreddit_breadth":      0.02,
+            "account_age":            0.02,
+        },
     },
     # Diagnostic: comments only
     "ONLY_COM": {

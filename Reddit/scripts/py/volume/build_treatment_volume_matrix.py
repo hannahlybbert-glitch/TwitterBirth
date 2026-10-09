@@ -25,7 +25,7 @@
 #     days_from, birth_after_cutoff, active_since (earliest observed submission or
 #     comment -- NOT account creation), account_age_days (date_birth_post - active_since),
 #     n_subreddits_all_life, n_subreddits_all_pre (distinct subreddits across
-#     submissions+comments, whole history / months -18..-1)
+#     submissions+comments, whole history / months -10..-1)
 #   Type-specific columns (submissions in one file, comments in the other):
 #     n_subreddits_life, n_subreddits_pre,
 #     18pre..1pre, 0post..17post           (all activity)
@@ -57,6 +57,7 @@ COMMENT_VOLUME_PATH    = VOLUME_DATA_DIR / "treatment_comment_volume.parquet"
 
 MONTH_RANGE = list(range(-18, 18))     # months_from_birth -18..17
 PRE_RANGE   = list(range(-18, 0))      # months_from_birth -18..-1
+BREADTH_RANGE = list(range(-10, 0))    # distinct-subreddit counts (*_n_subreddits_pre) use -10..-1 (same as step 3)
 
 # Text field -> median character length over PRE_RANGE (same as step 3 candidate side)
 COMMENT_TEXT    = {"body": "median_body_chars"}
@@ -213,7 +214,7 @@ def volume(df, authors, months, prefix=""):
 
 def subreddit_pairs(df, pre_only=False):
     if pre_only:
-        df = df[df["months_from_birth"].isin(PRE_RANGE)]
+        df = df[df["months_from_birth"].isin(BREADTH_RANGE)]
     return df[["author", "sub_lc"]].drop_duplicates()
 
 

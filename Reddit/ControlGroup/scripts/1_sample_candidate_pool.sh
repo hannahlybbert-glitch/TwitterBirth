@@ -26,6 +26,7 @@ export TREATMENT_AUTHORS_CSV=/nfs/turbo/si-ksrini/Reddit/data/final/treatment_au
 export BIRTH_DATE_DIST_CSV=/nfs/turbo/si-ksrini/Reddit/data/descriptives/date_birth_dist_full.csv
 export CONTROLGROUP_DATA_DIR=/nfs/turbo/si-ksrini/Reddit/ControlGroup/data
 export ALL_AUTHORS_DIR=/nfs/turbo/si-ksrini/Reddit/data/all_authors
+export BIRTH_SUBREDDITS_CSV=/nfs/turbo/si-ksrini/Reddit/data/descriptives/birth_subreddits.csv
 
 mkdir -p logs
 : "${SLURM_ARRAY_TASK_ID:?must be run as a Slurm array job}"
