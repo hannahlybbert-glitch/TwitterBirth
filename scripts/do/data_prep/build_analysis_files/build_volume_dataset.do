@@ -9,7 +9,7 @@ use "$cleaned/tweet_volume_by_user_full_sample_CLEAN.dta", clear
 	distinct author_id
 
 * --- Restrict to authors who passed the lifetime avg weekly tweets trim (see lifetime_trim.do) ---
-	merge m:1 author_id using "$cleaned/lifetime_trim_authors.dta", keep(match) nogen keepusing(author_id)
+	merge m:1 author_id using "$cleaned/lifetime_trim_authors.dta", keep(match) nogen keepusing(author_id avg_weekly_tweets)
 
 di "Authors before sample-period (og/qt) trim"
 	distinct author_id
@@ -42,7 +42,7 @@ distinct author_id
 	distinct author_id
 
 * --- Restrict to authors who passed the lifetime avg weekly tweets trim (see lifetime_trim.do) ---
-	merge m:1 author_id using "$cleaned/lifetime_trim_authors.dta", keep(match) nogen keepusing(author_id)
+	merge m:1 author_id using "$cleaned/lifetime_trim_authors.dta", keep(match) nogen keepusing(author_id avg_weekly_tweets)
 
 di "Authors before sample-period (rt/reply) trim"
 	distinct author_id

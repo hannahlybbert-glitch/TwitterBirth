@@ -16,7 +16,6 @@ use "$final/volume_control_treatment_sample.dta", clear
 
 gen log_og_tweets = log(og_qt_month_tweets + 1)
 
-
 * ----------------------------------------------------------------
 * FIGURE 1: Original Tweets, Treatment vs. Control
 * ----------------------------------------------------------------
@@ -41,5 +40,5 @@ preserve
 		  $xlab_months ///
 		  legend(order(2 "Treatment" 3 "Control") $leg_pos_lr) ///
 		  $region
-	graph export "$vol_out/log_treat_control.$fig_format", replace
+// 	graph export "$vol_out/log_treat_control.$fig_format", replace
 restore

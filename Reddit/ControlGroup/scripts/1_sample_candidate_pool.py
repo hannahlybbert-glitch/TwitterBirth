@@ -65,7 +65,7 @@ CHUNK_DIR     = DATA_DIR / "1_candidate_pool_chunks"
 COMBINED_PATH = DATA_DIR / "1_candidate_pool.parquet"
 
 DEFAULT_SEED = 20260902
-TARGET_N     = 400_000     # updated to 400k candidate authors on 10/6/2026
+TARGET_N     = 500_000     # updated to 500k candidate authors on 10/13/2026
 MIN_QUOTA    = 10          # months whose scaled share rounds below this are bumped up to it
 
 MAX_WINDOW = 2 ** 31       # some dumps use zstd windows > the library default (2**27)

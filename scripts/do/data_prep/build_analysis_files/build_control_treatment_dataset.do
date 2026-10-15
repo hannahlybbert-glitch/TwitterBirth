@@ -7,6 +7,7 @@
 * SECTION 1: Load control volume data, align names with treatment
 *=============================================================================
 use "$control_cleaned/test/tweet_volume_control_CLEAN.dta", clear
+gen treated = 0
 
 di "Control authors going into append"
 	distinct author_id
@@ -28,7 +29,7 @@ append using `control'
 
 di "Authors after appending treatment + control"
 	distinct author_id
-tab treated
+tab treated, missing
 
 
 *=============================================================================

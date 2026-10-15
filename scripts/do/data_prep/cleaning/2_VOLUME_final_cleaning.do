@@ -60,7 +60,7 @@ replace date_birth = "2017-09-20T21:33:40.000Z" if unique_id == "312469045_2017-
 	replace post_birth = 1 if date_birth == date
 	
 *--- Merge in female identifier ---
-	merge m:1 unique_id using "$intermediate/user_info_full_sample_preclean.dta", keepusing(female date_birth_tweet) //30 not matched, check out
+	merge m:1 unique_id using "$intermediate/user_info_full_sample_preclean.dta", keepusing(female date_birth_tweet avg_weekly_tweets) //30 not matched, check out
 	drop _merge
 
 
