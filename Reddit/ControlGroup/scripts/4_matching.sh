@@ -25,9 +25,9 @@ export BIRTH_SUBREDDITS_CSV=/nfs/turbo/si-ksrini/Reddit/data/descriptives/birth_
 
 mkdir -p logs
 
-# # Step 4a: build the matching dataset
-# echo "4a: building matching dataset at: $(date)"
-# "$PYTHON" -u ControlGroup/scripts/4a_build_matching_dataset.py
+# Step 4a: build the matching dataset
+echo "4a: building matching dataset at: $(date)"
+"$PYTHON" -u ControlGroup/scripts/4a_build_matching_dataset.py
 
 # Specs to run (defined in matching_specs.py)
 SPECS=(ORIGINAL PRE10 COARSE COM-HEAVY COARSE_COM-HEAVY COM-VERY-HEAVY COARSE_COM-VERY-HEAVY
