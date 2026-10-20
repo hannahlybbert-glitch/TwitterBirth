@@ -11,7 +11,7 @@ import pandas as pd
 
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
-TEST_MODE   = True            # set False for full run
+TEST_MODE   = False            # set False for full run
 
 _base_dir = "ControlGroup/data/1_seed_tweets"
 INPUT_DIR = f"{_base_dir}/test" if TEST_MODE else _base_dir

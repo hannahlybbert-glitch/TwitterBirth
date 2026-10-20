@@ -23,7 +23,7 @@ BATCH_SIZE        = 100
 CHECKPOINT_EVERY  = 10           # batches between saves
 SLEEP_BETWEEN     = 1.0          # seconds between API calls
 
-TEST_MODE = True   # set False for full run
+TEST_MODE = False   # set False for full run
 
 _base_seed     = "ControlGroup/data/LLM/seed_tweets"
 _base_profiles = "ControlGroup/data/2_user_profiles"
@@ -83,6 +83,9 @@ def fetch_users_batch(ids, bearer_token, max_retries=5):
             wait = max(int(reset_ts) - int(time.time()) + 5, 5) if reset_ts else 60 * (2 ** attempt)
             print(f"  Rate limited. Waiting {wait}s (attempt {attempt + 1}/{max_retries})...")
             time.sleep(wait)
+        elif response.status_code >= 500:
+            print(f"  Server error {response.status_code}. Retrying in {30 * (attempt + 1)}s...")
+            time.sleep(30 * (attempt + 1))
         else:
             response.raise_for_status()
 
@@ -98,12 +101,13 @@ def save_checkpoint(rows, batch_idx):
 for batch_idx, batch in enumerate(batches[start_batch:], start=start_batch):
     print(f"[Batch {batch_idx + 1}/{len(batches)}]  {len(batch)} authors")
 
+    # Stop on any non-rate-limit error (e.g. credits depleted) so no batch is skipped; rerun resumes here
     try:
         data = fetch_users_batch(batch, BEARER_TOKEN)
     except Exception as e:
-        print(f"  ERROR: {e} — skipping batch {batch_idx}")
-        time.sleep(SLEEP_BETWEEN)
-        continue
+        print(f"  ERROR: {e} — stopping at batch {batch_idx}")
+        save_checkpoint(pulled_rows, batch_idx - 1)
+        sys.exit(1)
 
     returned_ids = set()
 

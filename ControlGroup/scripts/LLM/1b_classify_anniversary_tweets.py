@@ -21,7 +21,7 @@ load_dotenv(dotenv_path="config/.env")
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- Config ---
-TEST_MODE   = True
+TEST_MODE   = False
 
 _base_seed  = "ControlGroup/data/1_seed_tweets"
 INPUT_PATH  = f"{_base_seed}/test/candidate_pool_CLEAN.csv" if TEST_MODE else f"{_base_seed}/candidate_pool_CLEAN.csv"
@@ -102,7 +102,7 @@ def get_anniversary_prompt(tweet_id, text):
         "method": "POST",
         "url": "/v1/chat/completions",
         "body": {
-            "model": "gpt-4o-mini",
+            "model": "gpt-4o",
             "messages": [
                 {
                     "role": "system",

@@ -4,7 +4,8 @@
 #          author a placebo birth date, and save profiles_filtered.csv.
 #          Filter B uses a fixed cutoff (FILTER_B_CUTOFF) equal to the treatment
 #          group's 95th percentile of avg_weekly_tweets, applied to the control
-#          group as well so both groups share the same threshold.
+#          group as well so both groups share the same threshold. Also drops
+#          control authors who are in the treatment group.
 
 import os
 
@@ -14,7 +15,7 @@ from datetime import date
 
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
-TEST_MODE   = True            # set False for full run
+TEST_MODE   = False            # set False for full run
 
 # tweet_count reflects the account's live post count as of when get_user_profiles.py
 # pulled it, so avg_weekly_tweets is measured against that pull date, not seed_tweet_date.
@@ -31,6 +32,8 @@ DAYS_FROM_MAX_ABS = 14
 DAYS_FROM_SEED = 1234  # reproducibility for the placebo days_from draw
 DAYS_FROM_CSV  = "data/final/user_analysis_sample.csv"  # treatment group's days_from distribution
 
+TREATMENT_AUTHORS_DTA = "D:/TwitterBirth/data/cleaned/lifetime_trim_authors.dta"  # unique treatment authors
+
 _base_profiles = "ControlGroup/data/2_user_profiles"
 
 OUTPUT_DIR = f"{_base_profiles}/test" if TEST_MODE else _base_profiles
@@ -40,7 +43,7 @@ FILTERED_CSV = f"{OUTPUT_DIR}/profiles_filtered.csv"
 
 
 def main():
-    df = pd.read_csv(RAW_CSV)
+    df = pd.read_csv(RAW_CSV, dtype={"author_id": str})
 
     df["seed_tweet_date"]    = pd.to_datetime(df["seed_tweet_date"], utc=True, errors="coerce")
     df["account_created_at"] = pd.to_datetime(df["account_created_at"], utc=True, errors="coerce")
@@ -64,12 +67,17 @@ def main():
         (df["avg_weekly_tweets"] <= FILTER_B_CUTOFF)
     ).astype(int)
 
+    # Treatment overlap: control authors also in the treatment group are dropped
+    treatment_ids = set(pd.read_stata(TREATMENT_AUTHORS_DTA, columns=["author_id"])["author_id"].astype(str))
+    df["in_treatment"] = df["author_id"].isin(treatment_ids).astype(int)
+
     df.to_csv(RAW_CSV, index=False)
 
     filtered_df = df[
         (df["not_found"] == 0) &
         (df["filter_a_pass"] == 1) &
-        (df["filter_b_pass"] == 1)
+        (df["filter_b_pass"] == 1) &
+        (df["in_treatment"] == 0)
     ].copy()
 
     # Assign each surviving author a placebo birth date by bootstrap-drawing days_from (with
@@ -87,6 +95,7 @@ def main():
     n_not_found = (df["not_found"] == 1).sum()
     n_found     = (df["not_found"] == 0).sum()
     n_after_a   = ((df["not_found"] == 0) & (df["filter_a_pass"] == 1)).sum()
+    n_after_ab  = ((df["not_found"] == 0) & (df["filter_a_pass"] == 1) & (df["filter_b_pass"] == 1)).sum()
     n_final     = len(filtered_df)
 
     print(f"Filter B cutoff: avg_weekly_tweets <= {FILTER_B_CUTOFF:.2f}  (treatment group's 95th percentile)")
@@ -94,7 +103,8 @@ def main():
     print(f"  Input authors:          {n_total:,}")
     print(f"  Not found by API:       {n_not_found:,}")
     print(f"  Pass Filter A (age):    {n_after_a:,}  (of {n_found:,} found)")
-    print(f"  Pass Filter A + B:      {n_final:,}")
+    print(f"  Pass Filter A + B:      {n_after_ab:,}")
+    print(f"  Not in treatment group: {n_final:,}  (dropped {n_after_ab - n_final:,} also in treatment)")
 
     print(f"\nFiltered avg_weekly_tweets:")
     print(f"  Mean:                   {filtered_df['avg_weekly_tweets'].mean():.2f}")

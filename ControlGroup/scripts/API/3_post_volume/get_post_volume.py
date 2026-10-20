@@ -86,6 +86,9 @@ def paginate_counts(query, start_time, end_time, bearer_token, authors_done, max
                       f"Waiting {wait}s (~{wait / 60:.1f} min) before continuing...")
                 time.sleep(wait)
                 print("    Resuming.")
+            elif response.status_code >= 500:
+                print(f"    Server error {response.status_code}. Retrying in {30 * (attempt + 1)}s...")
+                time.sleep(30 * (attempt + 1))
             else:
                 response.raise_for_status()
         else:
@@ -142,10 +145,13 @@ for _, user_row in remaining.iterrows():
         #     f"from:{author_id} (is:retweet OR is:reply)",
         #     start_time, end_time, BEARER_TOKEN
         # )
+    # Stop on any non-rate-limit error (e.g. credits depleted); rerun resumes from completed_author_ids
     except Exception as e:
-        print(f"  ERROR: {e} — skipping {author_id}")
-        time.sleep(SLEEP_BETWEEN)
-        continue
+        print(f"  ERROR: {e} — stopping at {author_id}")
+        if buffer:
+            flush_to_temp(buffer)
+        save_progress(completed_ids)
+        sys.exit(1)
 
     df_a = pd.DataFrame(counts_a) if counts_a else pd.DataFrame(columns=["date", "count"])
     # df_b = pd.DataFrame(counts_b) if counts_b else pd.DataFrame(columns=["date", "count"])

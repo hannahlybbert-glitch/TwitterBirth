@@ -38,22 +38,22 @@ QUERY = (
     '-"her hubby" -"her husband" -"his wifey" -"his wife" '
 
     # Exclusions from observed false positives
-    '-"#WeAlmostDatedBut"'
+    '-"#WeAlmostDatedBut" '
     '-"RT @" '
-    '-"shop" -"buy" -"order" -"discount" -"sale" -"gift idea"'
+    '-"shop" -"buy" -"order" -"discount" -"sale" -"gift idea" '
     '-"I liked a @YouTube video" '
 
     '-is:retweet -is:reply -is:quote lang:en'
 )
 
-START_DATE      = datetime(2016, 1, 1, tzinfo=timezone.utc)
+START_DATE      = datetime(2013, 1, 1, tzinfo=timezone.utc)
 END_DATE        = datetime(2019, 1, 1, tzinfo=timezone.utc)  # exclusive
-TWEETS_PER_WEEK = 150    # max tweets pulled per week (~39k total across 2013-2018)
+TWEETS_PER_WEEK = 145    # max tweets pulled per week (313 weeks -> ~40k total across 2013-2018)
 
 CHECKPOINT_EVERY = 10    # save progress every N weeks
 SLEEP_BETWEEN    = 1.0   # seconds between API calls
 
-TEST_MODE   = True
+TEST_MODE   = False
 TEST_WEEKS  = 3          # number of weeks to fetch in test mode
 
 _base_dir      = "ControlGroup/data/1_seed_tweets"
@@ -85,6 +85,9 @@ def get_with_backoff(params, max_retries=5):
             wait = max(int(reset_ts) - int(time.time()) + 5, 5) if reset_ts else 60 * (2 ** attempt)
             print(f"  Rate limited. Waiting {wait}s (attempt {attempt + 1}/{max_retries})...")
             time.sleep(wait)
+        elif response.status_code >= 500:
+            print(f"  Server error {response.status_code}. Retrying in {30 * (attempt + 1)}s...")
+            time.sleep(30 * (attempt + 1))
         else:
             response.raise_for_status()
     response.raise_for_status()
@@ -129,13 +132,13 @@ for idx, (w_start, w_end) in enumerate(target_weeks[start_idx:], start=start_idx
         "sort_order":   "recency",
     }
 
+    # Stop on any non-rate-limit error (e.g. credits depleted) so no week is skipped; rerun resumes here
     try:
         response = get_with_backoff(params)
     except Exception as e:
-        print(f"  ERROR: {e} — skipping week {w_start.date()}")
-        last_idx = idx
-        time.sleep(SLEEP_BETWEEN)
-        continue
+        print(f"  ERROR: {e} — stopping at week {w_start.date()}")
+        save_checkpoint(candidate_pool, idx - 1)
+        sys.exit(1)
 
     tweets = response.json().get("data", [])
     new_users = 0

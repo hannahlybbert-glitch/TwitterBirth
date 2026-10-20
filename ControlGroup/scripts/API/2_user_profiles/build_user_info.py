@@ -9,7 +9,7 @@ import pandas as pd
 
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
-TEST_MODE   = True            # set False for full run
+TEST_MODE   = False            # set False for full run
 
 _base_profiles = "ControlGroup/data/2_user_profiles"
 
@@ -23,9 +23,10 @@ USER_INFO_DTA = f"{OUTPUT_DIR}/user_info.dta"
 
 
 def main():
-    profiles = pd.read_csv(PROFILES_CSV)
+    # read IDs as strings so they're saved as Stata str (int64 IDs lose precision as Stata doubles)
+    profiles = pd.read_csv(PROFILES_CSV, dtype={"author_id": str})
 
-    anniversaries = pd.read_csv(ANNIVERSARIES_CSV)
+    anniversaries = pd.read_csv(ANNIVERSARIES_CSV, dtype={"author_id": str, "tweet_id": str})
     anniversaries = anniversaries.drop_duplicates(subset="author_id")
     anniversaries = anniversaries.drop(columns=["created_at"])  # duplicate of profiles' seed_tweet_date
 
