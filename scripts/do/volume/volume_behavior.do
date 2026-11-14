@@ -2,6 +2,11 @@
 * Created: a while ago
 * Purpose: Total, original/qt, rt/rply volume figures for all accounts & by gender
 
+* TODO (flagged 2026-11-11): SE/CI BUG. Data are author-day rows, so collapsing *_month_tweets
+*   straight to months counts each author ~30x -> n = author-days, CIs ~5.5x too narrow.
+*   Fix: collapse (first) *_month_tweets, by(author_id months_from_birth [female]) first, as 1A does.
+*   Affected: sections 2, 3, and all three gender plots (marked "TODO SE BUG" below).
+
 ****************************************************
 ******* FULL SAMPLE *********
 use "$final/tweet_volume_analysis_sample.dta", clear
@@ -39,6 +44,7 @@ restore
 
 **3. RETWEET & REPLIES
 preserve
+	* TODO SE BUG: n = author-days, not authors (see header)
 	collapse (mean) rt_rp_month_tweets ///
 			 (sd)   sd_total = rt_rp_month_tweets ///
 			 (count) n = rt_rp_month_tweets, ///
@@ -70,6 +76,7 @@ restore
 **2. ORIGINAL & QUOTE TWEETS
 preserve
 use "$final/ogqt_volume_analysis_sample.dta", clear
+	* TODO SE BUG: n = author-days, not authors (see header)
 	collapse (mean) og_qt_month_tweets ///
 			 (sd)   sd_total = og_qt_month_tweets ///
 			 (count) n = og_qt_month_tweets, ///
@@ -103,6 +110,7 @@ use "$final/tweet_volume_analysis_sample.dta", clear
 
 **1. TOTAL TWEETS by GENDER (og+qt+rt+rply)
 preserve
+* TODO SE BUG: n = author-days, not authors (see header)
 collapse (mean) total_month_tweets (sd) sd_tweets = total_month_tweets (count) n = total_month_tweets, ///
 	by(months_from_birth female) 
 	
@@ -134,6 +142,7 @@ restore
 
 **3. RETWEET & REPLY by GENDER (rt+rply)
 preserve
+* TODO SE BUG: n = author-days, not authors (see header)
 collapse (mean) rt_rp_month_tweets (sd) sd_tweets = rt_rp_month_tweets (count) n = rt_rp_month_tweets, ///
 	by(months_from_birth female) 
 	
@@ -166,6 +175,7 @@ restore
 **2. ORIGINAL & QUOTE TWEETS by GENDER (og+qt)
 preserve
 use "$final/ogqt_volume_analysis_sample.dta", clear
+* TODO SE BUG: n = author-days, not authors (see header)
 collapse (mean) og_qt_month_tweets (sd) sd_tweets = og_qt_month_tweets (count) n = og_qt_month_tweets, ///
 	by(months_from_birth female) 
 	

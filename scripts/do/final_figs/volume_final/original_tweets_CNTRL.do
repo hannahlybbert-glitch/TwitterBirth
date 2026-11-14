@@ -3,6 +3,12 @@
 * Updated: 08/12/2026
 * Purpose: Log original tweet volume around birth -- treatment vs. control
 
+* TODO (flagged 2026-11-11): SE/CI BUG — FIX BEFORE USING.
+*   Data are author-day rows (treatment + control appended), so collapsing straight to months
+*   counts each author ~30x -> n = author-days, CIs ~5.5x too narrow (means are fine).
+*   Fix: after line creating log_og_tweets, add
+*     collapse (first) log_og_tweets, by(author_id treated months_from_birth)
+
 // do "$dofile/set_globals.do"
 
 * Y-axis title
@@ -20,6 +26,7 @@ gen log_og_tweets = log(og_qt_month_tweets + 1)
 * FIGURE 1: Original Tweets, Treatment vs. Control
 * ----------------------------------------------------------------
 preserve
+	* TODO SE BUG: n = author-days, not authors (see header)
 	collapse (mean) log_og_tweets        ///
 	         (sd)   sd_var = log_og_tweets ///
 	         (count) n     = log_og_tweets, ///

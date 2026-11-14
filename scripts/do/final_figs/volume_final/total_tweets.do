@@ -4,6 +4,13 @@
 * Purpose: Log total tweet volume around birth
 * Output:  total_tweets.png, total_tweets_gender.png
 
+* TODO (flagged 2026-11-11): SE/CI BUG — FINAL FIGURES, FIX BEFORE USING.
+*   Data are author-day rows, so collapsing straight to months counts each author ~30x
+*   -> n = author-days, CIs ~5.5x too narrow (means are fine).
+*   Fix: after line creating ltotal_month_tweets, add
+*     collapse (first) ltotal_month_tweets female, by(author_id months_from_birth)
+*   Affected: Figure 3 and Figure 4 (marked "TODO SE BUG" below).
+
 do "$dofile/set_globals.do"
 
 * Y-axis title
@@ -18,6 +25,7 @@ gen ltotal_month_tweets = log(total_month_tweets + 1)
 * FIGURE 3: Total Tweets (Overall)
 * ----------------------------------------------------------------
 preserve
+	* TODO SE BUG: n = author-days, not authors (see header)
 	collapse (mean) ltotal_month_tweets        ///
 	         (sd)   sd_var = ltotal_month_tweets ///
 	         (count) n     = ltotal_month_tweets, ///
@@ -45,6 +53,7 @@ restore
 * FIGURE 4: Total Tweets by Gender
 * ----------------------------------------------------------------
 preserve
+	* TODO SE BUG: n = author-days, not authors (see header)
 	collapse (mean) ltotal_month_tweets        ///
 	         (sd)   sd_var = ltotal_month_tweets ///
 	         (count) n     = ltotal_month_tweets, ///

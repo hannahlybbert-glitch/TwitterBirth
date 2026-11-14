@@ -34,6 +34,9 @@ def main():
     # info is attached only for authors who are actually in profiles_filtered
     df = profiles.merge(anniversaries, on="author_id", how="left")
 
+    # constant after filter_profiles.py, so no information is lost
+    df = df.drop(columns=["not_found", "filter_a_pass", "filter_b_pass", "in_treatment"])
+
     # Stata .dta can't write timezone-aware datetimes as native Stata dates, and the cleaning
     # .do files expect a plain ISO string (they parse dates via date(substr(var,1,10), "YMD")),
     # so write these out as strings rather than native Stata datetimes.

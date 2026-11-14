@@ -1,6 +1,7 @@
 # Author: Hannah Lybbert
 # Created: 2026-06-04
-# Purpose: Phase 3 — pull daily post volume for filtered users,
+# Updated: 2026-11-04
+# Purpose: Phase 3 — pull daily post volume for one part (--part) of the filtered users,
 #          18 months before and after each user's placebo birth date
 #          (date_birth_placebo, clamped to not precede account creation)
 
@@ -10,6 +11,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
+import argparse
 import json
 import time
 import requests
@@ -24,17 +26,22 @@ BEARER_TOKEN = os.getenv("X_API_BEARER_TOKEN")
 SLEEP_BETWEEN    = 0.5   # seconds between each API call
 CHECKPOINT_EVERY = 10    # users between progress saves
 
-TEST_MODE = True   # set False for full run
+TEST_MODE = False   # set False for full run
+
+N_PARTS = 2
+parser = argparse.ArgumentParser()
+parser.add_argument("--part", type=int, required=True, choices=range(N_PARTS))
+PART = parser.parse_args().part
 
 _base_profiles = "ControlGroup/data/2_user_profiles"
 _base_volume   = "ControlGroup/data/3_post_volume"
 
 if TEST_MODE:
-    INPUT_CSV  = f"{_base_profiles}/test/profiles_filtered.csv"
-    OUTPUT_DIR = f"{_base_volume}/test"
+    INPUT_CSV  = f"{_base_profiles}/profiles_filtered_test.csv"
+    OUTPUT_DIR = f"{_base_volume}/test_100/part_{PART}"
 else:
     INPUT_CSV  = f"{_base_profiles}/profiles_filtered.csv"
-    OUTPUT_DIR = _base_volume
+    OUTPUT_DIR = f"{_base_volume}/part_{PART}"
 
 TEMP_CSV      = f"{OUTPUT_DIR}/post_volume_temp.csv"
 OUTPUT_CSV    = f"{OUTPUT_DIR}/post_volume.csv"       # test mode final output
@@ -50,7 +57,8 @@ users_df = pd.read_csv(INPUT_CSV, dtype=str)
 users_df["date_birth_placebo"] = pd.to_datetime(users_df["date_birth_placebo"], utc=True)
 users_df["account_created_at"] = pd.to_datetime(users_df["account_created_at"], utc=True)
 users_df = users_df[["author_id", "date_birth_placebo", "account_created_at"]].drop_duplicates(subset="author_id")
-print(f"Loaded {len(users_df):,} filtered users")
+users_df = users_df.sort_values("author_id").iloc[PART::N_PARTS]
+print(f"Part {PART}: loaded {len(users_df):,} filtered users")
 
 # --- Resume from checkpoint ---
 completed_ids = set()
@@ -76,7 +84,15 @@ def paginate_counts(query, start_time, end_time, bearer_token, authors_done, max
 
     while True:
         for attempt in range(max_retries):
-            response = requests.get(COUNTS_URL, params=params, headers=headers)
+            try:
+                response = requests.get(COUNTS_URL, params=params, headers=headers, timeout=60)
+            except (requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout,
+                    requests.exceptions.ChunkedEncodingError) as e:
+                wait = 60 * (2 ** attempt)
+                print(f"    Connection error ({type(e).__name__}). Retrying in {wait}s...")
+                time.sleep(wait)
+                continue
             if response.status_code == 200:
                 break
             if response.status_code == 429:
@@ -92,7 +108,7 @@ def paginate_counts(query, start_time, end_time, bearer_token, authors_done, max
             else:
                 response.raise_for_status()
         else:
-            response.raise_for_status()
+            raise RuntimeError(f"No successful response after {max_retries} attempts")
 
         data = response.json()
         for bucket in data.get("data", []):

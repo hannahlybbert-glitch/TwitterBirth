@@ -53,7 +53,7 @@ gen treated = 0
 *=============================================================================
 
 *--- Remove variables
-drop not_found filter_a_pass filter_b_pass week_start
+drop week_start
 
 
 *--- Rename vars

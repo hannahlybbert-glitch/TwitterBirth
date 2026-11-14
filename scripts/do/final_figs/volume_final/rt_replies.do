@@ -5,6 +5,13 @@
 
 * Output:  log_rt_replies.jpg, log_rt_replies_gender.jpg
 
+* TODO (flagged 2026-11-11): SE/CI BUG — FINAL FIGURES, FIX BEFORE USING.
+*   Data are author-day rows, so collapsing straight to months counts each author ~30x
+*   -> n = author-days, CIs ~5.5x too narrow (means are fine).
+*   Fix: after line creating lrt_rp_month_tweets, add
+*     collapse (first) lrt_rp_month_tweets female, by(author_id months_from_birth)
+*   Affected: Figure 1 and Figure 2 (marked "TODO SE BUG" below).
+
 do "$dofile/set_globals.do"
 di "$ylab"
 di "$xlab_months"
@@ -23,6 +30,7 @@ di "$xlab_months"
 * FIGURE 1: Retweets and Replies (Overall)
 * ----------------------------------------------------------------
 preserve
+	* TODO SE BUG: n = author-days, not authors (see header)
 	collapse (mean) lrt_rp_month_tweets        ///
 	         (sd)   sd_var = lrt_rp_month_tweets ///
 	         (count) n     = lrt_rp_month_tweets, ///
@@ -50,6 +58,7 @@ restore
 * FIGURE 2: Retweets and Replies by Gender
 * ----------------------------------------------------------------
 preserve
+	* TODO SE BUG: n = author-days, not authors (see header)
 	collapse (mean) lrt_rp_month_tweets        ///
 	         (sd)   sd_var = lrt_rp_month_tweets ///
 	         (count) n     = lrt_rp_month_tweets, ///

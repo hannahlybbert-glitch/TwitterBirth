@@ -11,15 +11,14 @@ import os
 
 import numpy as np
 import pandas as pd
-from datetime import date
 
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
 TEST_MODE   = False            # set False for full run
 
 # tweet_count reflects the account's live post count as of when get_user_profiles.py
-# pulled it, so avg_weekly_tweets is measured against that pull date, not seed_tweet_date.
-REF_DATE = pd.Timestamp(date.today(), tz="UTC")
+# pulled it, so avg_weekly_tweets is measured against a fixed date, not seed_tweet_date.
+REF_DATE = pd.Timestamp("2026-10-20", tz="UTC")
 
 FILTER_B_CUTOFF = 79.94      # treatment group's 95th percentile of avg_weekly_tweets; same cutoff applied to control
 
@@ -40,6 +39,10 @@ OUTPUT_DIR = f"{_base_profiles}/test" if TEST_MODE else _base_profiles
 
 RAW_CSV      = f"{OUTPUT_DIR}/profiles_raw.csv"
 FILTERED_CSV = f"{OUTPUT_DIR}/profiles_filtered.csv"
+FILTERED_TEST_CSV = f"{OUTPUT_DIR}/profiles_filtered_test.csv"
+
+TEST_SAMPLE_N    = 100
+TEST_SAMPLE_SEED = 1234  # reproducibility for the test sample draw
 
 
 def main():
@@ -91,7 +94,11 @@ def main():
 
     filtered_df.to_csv(FILTERED_CSV, index=False)
 
-    n_total     = len(df)
+    # random sample for test runs (capped at the number of filtered authors)
+    test_df = filtered_df.sample(n=min(TEST_SAMPLE_N, len(filtered_df)), random_state=TEST_SAMPLE_SEED)
+    test_df.to_csv(FILTERED_TEST_CSV, index=False)
+
+    n_total  = len(df)
     n_not_found = (df["not_found"] == 1).sum()
     n_found     = (df["not_found"] == 0).sum()
     n_after_a   = ((df["not_found"] == 0) & (df["filter_a_pass"] == 1)).sum()
@@ -115,6 +122,7 @@ def main():
           f"(bootstrap draw from {len(treatment_days_from):,} treatment days_from values)")
 
     print(f"\nFiltered profiles saved to {FILTERED_CSV}")
+    print(f"Test sample ({len(test_df):,} authors) saved to {FILTERED_TEST_CSV}")
 
 
 if __name__ == "__main__":
